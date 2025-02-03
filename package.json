@@ -1,0 +1,31 @@
+{
+  "name": "self-description-generator",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@gaia-x/json-web-signature-2020": "^2.3.0",
+    "axios": "^1.7.9",
+    "fetch": "^1.1.0",
+    "fs": "^0.0.1-security",
+    "inquirer": "^12.3.2",
+    "jose": "^5.9.6",
+    "js-yaml": "^4.1.0",
+    "uuid": "^11.0.5",
+    "validator": "^13.12.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.26.4",
+    "@babel/core": "^7.26.7",
+    "@babel/preset-env": "^7.26.7",
+    "@vercel/ncc": "^0.38.3",
+    "esbuild": "^0.24.2",
+    "pkg": "^5.8.1"
+  }
+}
