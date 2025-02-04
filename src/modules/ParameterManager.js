@@ -47,7 +47,7 @@ export class ParameterManager {
     parameters.type = await this.validateOrAskType(parameters.type, validTypes);
 
     if (
-      parameters.type === "RegistrationNumber" ||
+      parameters.type === "LocalRegistrationNumber" ||
       parameters.type === "legalRegistrationNumber"
     ) {
       console.log("🔍 RegistrationNumber type detected.");

@@ -63,7 +63,7 @@ export class MainController {
 
     let shape;
 
-    if (type === "legalRegistrationNumber" || type === "RegistrationNumber") {
+    if (type === "legalRegistrationNumber" || type === "LocalRegistrationNumber") {
       console.log("📋 Handling Legal Registration Number (LRN) workflow...");
 
       // Collect registration details
@@ -78,6 +78,7 @@ export class MainController {
       const credentialSubjectId = uuid4(); // Credential Subject ID
       shape =
         await this.legalRegistrationNumberModule.createLegalRegistrationNumberShape(
+          ontologyVersion,
           vcid,
           credentialSubjectId,
           registrationType,
