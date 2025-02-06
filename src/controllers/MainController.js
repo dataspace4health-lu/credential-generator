@@ -35,22 +35,28 @@ export class MainController {
           parameters,
           this.selfDescriptionModule
         );
+
+        if (parameters.credentialType === "Verifiable Presentation (VP)") {
+          await this.handleVerifiablePresentation(executableParams);
+        } else {
+          await this.handleVerifiableCredential(executableParams);
+        }
+        console.log("\n🎉 Workflow completed successfully!");
+      } catch (error) {
+        console.error(`\n❌ An error occurred: ${error.message}`);
+      } finally {
+        console.log("\n========================================");
+      }
       // console.log("✅ Executable parameters collected successfully.\n");
       // console.log("Executable parameters: ", executableParams);
 
       // Step 3: Start shape generation workflow
 
-      await this.handleShape(executableParams);
+      // await this.handleShape(executableParams);
 
-      console.log("\n🎉 Workflow completed successfully!");
-    } catch (error) {
-      console.error(`\n❌ An error occurred: ${error.message}`);
-    } finally {
-      console.log("\n========================================");
-    }
-  }
+  } 
 
-  async handleShape(executableParams) {
+  async handleVerifiableCredential(executableParams) {
     const {
       type,
       ontologyVersion,
@@ -61,7 +67,7 @@ export class MainController {
 
     console.log(`🔧 Executing workflow for type: ${type}...\n`);
 
-    let shape;
+    let vcShape;
 
     if (type === "legalRegistrationNumber" || type === "RegistrationNumber") {
       console.log("📋 Handling Legal Registration Number (LRN) workflow...");
@@ -76,7 +82,7 @@ export class MainController {
       // Generate the LRN shape
       const vcid = uuid4(); // Verifiable Credential ID
       const credentialSubjectId = uuid4(); // Credential Subject ID
-      shape =
+      vcShape =
         await this.legalRegistrationNumberModule.createLegalRegistrationNumberShape(
           vcid,
           credentialSubjectId,
@@ -88,27 +94,27 @@ export class MainController {
 
       // Save the LRN shape directly
       console.log("Saving the LRN shape...");
-      await this.outputManager.saveToFile(outputDir, `${type}.json`, shape);
+      await this.outputManager.saveToFile(outputDir, `${type}.json`, vcShape);
       console.log("📂 LRN shape saved successfully.");
       return; // Exit the function to avoid signing logic
     }
 
     // General case for other types
-    shape = await this.selfDescriptionModule.generateShape(
+    vcShape = await this.selfDescriptionModule.generateShape(
       type,
       ontologyVersion
     );
 
     console.log("✅ Shape generated successfully.\n");
 
-    let finalShape = shape;
+    let finalShape = vcShape;
 
     // Handle signing logic
     if (shouldSign) {
       console.log("✍️  Signing the shape...");
       finalShape = await this.signatureModule.signDocument(
         ontologyVersion,
-        shape,
+        vcShape,
         privateKeyPath
       );
       console.log("✅ Shape signed successfully.\n");
@@ -121,5 +127,57 @@ export class MainController {
     await this.outputManager.saveToFile(outputDir, `${type}.json`, finalShape);
 
     // console.log(`${type} shape handling completed successfully!`);
+  }
+  async handleVerifiablePresentation(executableParams) {
+    console.log("parameters", executableParams);
+    const {
+      credentialType,
+      type,
+      ontologyVersion,
+      shouldSign,
+      privateKeyPath,
+      outputDir = "./output",
+    } = executableParams;
+
+    console.log("📋 Handling Verifiable Presentation (VP) workflow...");
+    const selectedFiles = await this.parameterManager.collectFilesForVP();
+
+    if (selectedFiles.length === 0) {
+      throw new Error("❌ No files selected for Verifiable Presentation.");
+    }
+
+    // General case for other types
+    let vpShape
+    vpShape = await this.selfDescriptionModule.generateVpShape(
+      ontologyVersion,
+      selectedFiles
+    );
+
+    console.log("✅ Shape generated successfully.\n");
+    // console.log("vpShape", vpShape);
+
+    let finalShape = vpShape;
+
+    // Handle signing logic
+    if (shouldSign) {
+      console.log("✍️  Signing the shape...");
+      finalShape = await this.signatureModule.signDocument(
+        ontologyVersion,
+        vpShape,
+        privateKeyPath
+      );
+      console.log("✅ Shape signed successfully.\n");
+      // console.log("finalShape", finalShape);
+    } else {
+      console.log("⚠️  Skipping signing as per user choice.");
+    }
+
+    console.log("Saving the VP...");
+    this.outputManager.saveToFile(
+      outputDir,
+      "verifiable_presentation.json",
+      finalShape
+    );
+    console.log("✅ VP handling completed successfully!");
   }
 }

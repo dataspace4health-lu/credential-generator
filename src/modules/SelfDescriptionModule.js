@@ -1,6 +1,8 @@
 import axios from "axios";
 import yaml from "js-yaml";
 import { v4 as uuid4 } from "uuid";
+import fs from "fs/promises";
+import path from "path";
 
 export class SelfDescriptionModule {
   constructor(parameterManager) {
@@ -47,7 +49,7 @@ export class SelfDescriptionModule {
     const implementedShapesResponse = await axios.get(
       this.tagusImplementedShapesUrl
     );
-    const implementedShapes = implementedShapesResponse.data;
+    const implementedShapes = implementedShapesResponse.data.sort();
 
     for (const shapeName of implementedShapes) {
       const shapeDetail = allShapes.find((s) => s["@id"].includes(shapeName));
@@ -79,10 +81,9 @@ export class SelfDescriptionModule {
     let classes = yamlData.classes || {};
     // console.log("length before", Object.keys(classes).length);
     classes = Object.fromEntries(
-      Object.entries(classes).filter(([type, details]) => {
-        // console.log(`Class: ${type}, Abstract: ${details.abstract}`);
-        return !details.abstract;
-      })
+      Object.entries(classes)
+        .filter(([type, details]) => !details.abstract)
+        .sort(([typeA], [typeB]) => typeA.localeCompare(typeB))
     );
     for (const [type, details] of Object.entries(classes)) {
       const attributes = details.attributes || {};
@@ -184,12 +185,16 @@ export class SelfDescriptionModule {
     // console.log(`📋 Collected properties for type '${type}':`, finalProperties);
 
     // Step 4: Fit the collected data into the shape object
-    const shapeObject = this.createShapeObject(type, finalProperties, version);
+    const shapeObject = this.createVcShapeObject(
+      type,
+      finalProperties,
+      version
+    );
 
     return shapeObject;
   }
 
-  createShapeObject(type, properties, ontologyVersion) {
+  createVcShapeObject(type, properties, ontologyVersion) {
     let shapeObject = {
       id: "https://dataspace4health.local/participants/ntt/" + uuid4(),
       type: ["VerifiableCredential"],
@@ -202,10 +207,7 @@ export class SelfDescriptionModule {
     };
 
     if (ontologyVersion === "22.10 (Tagus)") {
-      shapeObject["@context"] = [
-        "https://www.w3.org/2018/credentials/v1",
-        "https://w3id.org/security/suites/jws-2020/v1",
-      ];
+      shapeObject["@context"] = ["https://www.w3.org/2018/credentials/v1"];
       shapeObject.issuanceDate = new Date().toISOString();
     } else if (ontologyVersion === "24.06 (Loire)") {
       shapeObject["@context"] = [
@@ -216,5 +218,44 @@ export class SelfDescriptionModule {
     }
 
     return shapeObject;
+  }
+
+  async generateVpShape(ontologyVersion, selectedFiles) {
+    const verifiableCredentials = [];
+
+    for (const file of selectedFiles) {
+      const filePath = path.resolve(file);
+      const fileContent = await fs.readFile(filePath, "utf8");
+      verifiableCredentials.push(JSON.parse(fileContent));
+    }
+    // console.log("verifiableCredentials", verifiableCredentials);
+
+    let vpShapeObject;
+
+    if (ontologyVersion === "22.10 (Tagus)") {
+      vpShapeObject = {
+        type: ["VerifiablePresentation"],
+        verifiableCredential: verifiableCredentials,
+        "@context": ["https://www.w3.org/2018/credentials/v1"],
+      };
+    } else if (ontologyVersion === "24.06 (Loire)") {
+      const envelopedCredentials = verifiableCredentials.map((vc) => ({
+        "@context": ["https://www.w3.org/ns/credentials/v2"],
+        type: ["EnvelopedVerifiableCredential"],
+        id: "data:application/vc+jwt;" + vc,
+      }));
+
+      vpShapeObject = {
+        type: ["VerifiablePresentation"],
+        verifiableCredential: envelopedCredentials,
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://www.w3.org/ns/credentials/examples/v2",
+        ],
+      };
+      console.log("vpShapeObject", vpShapeObject);
+    }
+
+    return vpShapeObject;
   }
 }

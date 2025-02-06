@@ -6,10 +6,14 @@ import fs from "fs";
 export class ParameterManager {
   constructor() {
     this.validOntologyVersions = ["22.10 (Tagus)", "24.06 (Loire)"];
+    this.validCredentialTypes = [
+      "Verifiable Credential (VC)",
+      "Verifiable Presentation (VP)",
+    ];
   }
 
-  validateOntologyVersion(version) {
-    return this.validOntologyVersions.includes(version);
+  validateValue(value, validValues) {
+    return validValues.includes(value);
   }
 
   parseArguments(argv) {
@@ -23,45 +27,79 @@ export class ParameterManager {
   }
 
   async collectExecutableParameters(parameters, selfDescriptionModule) {
-    // Step 1: Validate or ask for the ontology version
+    // Step 1: Select Credential Type (VC or VP)
+    if (
+      !parameters.credentialType ||
+      !this.validateValue(parameters.credentialType, this.validCredentialTypes)
+    ) {
+      console.warn(
+        parameters.credentialType
+          ? `⚠️  Invalid Credential Type : ${parameters.credentialType}`
+          : "⚠️  Credential Type not provided."
+      );
+
+      parameters.credentialType = await this.askFromChoices(
+        "📜 Select the credential type:",
+        this.validCredentialTypes
+      );
+    }
+    // Step 2: Validate or ask for the ontology version
     if (
       !parameters.ontologyVersion ||
-      !this.validateOntologyVersion(parameters.ontologyVersion)
+      !this.validateValue(
+        parameters.ontologyVersion,
+        this.validOntologyVersions
+      )
     ) {
       console.warn(
         parameters.ontologyVersion
           ? `⚠️  Invalid ontology version: ${parameters.ontologyVersion}`
           : "⚠️  Ontology version not provided."
       );
-      parameters.ontologyVersion = await this.askOntologyVersion();
+      parameters.ontologyVersion = await this.askFromChoices(
+        "🌐 Select the ontology version:",
+        this.validOntologyVersions
+      );
     }
 
-    // Step 2: Fetch valid types from SelfDescriptionModule
-    const typesAndProperties =
-      await selfDescriptionModule.fetchOntologyTypesAndProperties(
-        parameters.ontologyVersion
+    // Step 3: Fetch valid types from SelfDescriptionModule
+    if (parameters.credentialType === "Verifiable Credential (VC)") {
+      const typesAndProperties =
+        await selfDescriptionModule.fetchOntologyTypesAndProperties(
+          parameters.ontologyVersion
+        );
+      const validTypes = Object.keys(typesAndProperties);
+
+      // Step 4: Validate or ask for the type
+      parameters.type = await this.validateOrAskType(
+        parameters.type,
+        validTypes
       );
-    const validTypes = Object.keys(typesAndProperties);
 
-    // Step 3: Validate or ask for the type
-    parameters.type = await this.validateOrAskType(parameters.type, validTypes);
-
-    if (
-      parameters.type === "RegistrationNumber" ||
-      parameters.type === "legalRegistrationNumber"
-    ) {
-      console.log("🔍 RegistrationNumber type detected.");
-      return parameters;
+      if (
+        parameters.type === "RegistrationNumber" ||
+        parameters.type === "legalRegistrationNumber"
+      ) {
+        console.log("🔍 RegistrationNumber type detected.");
+        return parameters;
+      }
     }
 
     // Ask if the user wants to sign
-    parameters.shouldSign = await this.askShouldSign();
+    parameters.shouldSign = await this.askForConfirmation(
+      "✍️  Do you want to sign the generated shape?"
+    );
 
     // If signing, ask whether to use a private key
     if (parameters.shouldSign) {
-      const useOwnKey = await this.askUseOwnKey();
+      const useOwnKey = await this.askForConfirmation(
+        "🔑 Do you want to use your own signing key?",
+        false
+      );
       if (useOwnKey) {
-        parameters.privateKeyPath = await this.askPrivateKeyPath();
+        parameters.privateKeyPath = await this.askForFilePath(
+          "Enter the path to your private key file:"
+        );
       } else {
         console.log("🔑 Using default signing key...\n");
         parameters.privateKey = false; // Set default signing key logic if needed
@@ -69,6 +107,19 @@ export class ParameterManager {
     }
 
     return parameters;
+  }
+
+  async collectFilesForVP() {
+    console.log("📂 Collecting files for Verifiable Presentation (VP)...");
+    const files = [];
+    let addMore = true;
+
+    while (addMore) {
+      const filePath = await this.askForFilePath("Enter the path to the file:");
+      files.push(filePath);
+      addMore = await this.askForMoreFiles();
+    }
+    return files;
   }
 
   async validateOrAskType(providedType, validTypes) {
@@ -286,76 +337,59 @@ export class ParameterManager {
     return answer.type;
   }
 
-  async askOntologyVersion() {
+  async askFromChoices(message, choices) {
     const answer = await inquirer.prompt([
       {
         type: "list",
-        name: "ontologyVersion",
-        message: "🌐 Select the ontology version:",
-        choices: ["22.10 (Tagus)", "24.06 (Loire)"],
+        name: "choice",
+        message: message,
+        choices: choices,
       },
     ]);
-    return answer.ontologyVersion;
+    return answer.choice;
   }
 
-  async askUseOwnKey() {
+  async askForConfirmation(message) {
     const answer = await inquirer.prompt([
       {
         type: "confirm",
-        name: "useOwnKey",
-        message: "🔑 Do you want to use your own signing key?",
+        name: "confirmation",
+        message: message,
         default: false,
       },
     ]);
-    return answer.useOwnKey;
+    return answer.confirmation;
   }
 
-  async askShouldSign() {
-    const answer = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "shouldSign",
-        message: "✍️  Do you want to sign the generated shape?",
-        default: true,
-      },
-    ]);
-    return answer.shouldSign;
-  }
-
-  async askPrivateKeyPath() {
-    const answer = await inquirer.prompt([
+  async askForFilePath(message) {
+    const { filePath } = await inquirer.prompt([
       {
         type: "input",
-        name: "privateKeyPath",
-        message: "Enter the path to your private key file:",
+        name: "filePath",
+        message: message,
         validate: (input) => {
           if (!fs.existsSync(input)) {
-            return "File does not exist. Please provide a valid path.";
+            return "⚠️ File does not exist. Please enter a valid file path.";
           }
           if (!fs.lstatSync(input).isFile()) {
-            return "Path does not point to a file. Please provide a valid file path.";
+            return "⚠️ Path does not point to a file. Please provide a valid file path.";
           }
           return true;
         },
       },
     ]);
-    return answer.privateKeyPath;
+    return filePath;
   }
 
-  //   validateRegistrationNumber(input, type) {
-  //     switch (type) {
-  //       case "leiCode":
-  //         return /^[A-Z0-9]{20}$/.test(input);
-  //       case "vatID":
-  //         return /^[A-Z]{2}[0-9A-Za-z]{8,12}$/.test(input);
-  //       case "EORI":
-  //         return /^[A-Z]{2}[0-9]{8,15}$/.test(input);
-  //       case "EUID":
-  //         return validator.isAlphanumeric(input);
-  //       case "taxID":
-  //         return validator.isNumeric(input);
-  //       default:
-  //         return false;
-  //     }
-  //   }
+  async askForMoreFiles() {
+    const { moreFiles } = await inquirer.prompt([
+      {
+        type: "confirm",
+        name: "moreFiles",
+        message: "Would you like to add another file?",
+        default: true,
+      },
+    ]);
+    return moreFiles;
+  }
 }
