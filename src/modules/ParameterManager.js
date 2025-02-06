@@ -2,6 +2,7 @@ import inquirer from "inquirer";
 import validator from "validator";
 import path from "path";
 import fs from "fs";
+import countryRegions from "../../data/regionCodes.json";
 
 export class ParameterManager {
   constructor() {
@@ -245,10 +246,6 @@ export class ParameterManager {
           "gx:headquartersAddress",
         ].includes(property)
       ) {
-        const filePath = path.resolve(__dirname, "../../data/regionCodes.json");
-        const countryRegions = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-        // console.log("countryRegions", countryRegions);
-
         if (!countryRegions.includes(input)) {
           return `⚠️ Address must be one of the valid country regions (e.g., LU-CA).`;
         }
