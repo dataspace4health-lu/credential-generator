@@ -56,7 +56,9 @@ export class OutputManager {
         ? outputPath
         : path.join(outputPath, defaultFileName);
 
-      await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+      if (!fs.existsSync(path.dirname(filePath))) {
+        await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+      }
       await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2));
       console.log(`✅ File saved to: ${filePath}\n`);
     } catch (error) {
