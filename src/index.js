@@ -1,4 +1,5 @@
 import { MainController } from "./controllers/MainController.js";
+import readline from "readline";
 
 (async () => {
   try {
@@ -13,7 +14,18 @@ import { MainController } from "./controllers/MainController.js";
     // Run the workflow
     await mainController.run(args);
 
-    console.log("Workflow completed successfully!");
+    console.log("Workflow completed successfully! 🎉\n");
+
+    // After the main workflow completes
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    rl.question("Press Enter to exit...", () => {
+      rl.close();
+      process.exit(0);
+    });
   } catch (error) {
     console.error("An error occurred:", error.message);
     process.exit(1); // Exit with error status
