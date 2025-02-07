@@ -101,9 +101,11 @@ export class ParameterManager {
         parameters.privateKeyPath = await this.askForFilePath(
           "Enter the path to your private key file:"
         );
+        parameters.verificationMethod = await this.askForVerificationMethod();
       } else {
         console.log("🔑 Using default signing key...\n");
         parameters.privateKey = false; // Set default signing key logic if needed
+        parameters.verificationMethod = "did:web:dataspace4health.local#key-0";
       }
     }
 
@@ -376,6 +378,27 @@ export class ParameterManager {
       },
     ]);
     return filePath;
+  }
+
+  async askForVerificationMethod() {
+    const answer = await inquirer.prompt([
+      {
+        type: "input",
+        name: "verificationMethod",
+        message: "🔍 Enter your verification method (DID or URL):",
+        validate: (input) => {
+          // Ensure it's either a valid URL or DID
+          if (
+            validator.isURL(input) ||
+            /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+(#.+)?$/.test(input)
+          ) {
+            return true;
+          }
+          return "⚠️ Invalid verification method. Use a valid DID (e.g., did:web:example.com#key-1) or a URL.";
+        },
+      },
+    ]);
+    return answer.verificationMethod;
   }
 
   async askForMoreFiles() {

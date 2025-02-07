@@ -62,6 +62,7 @@ export class MainController {
       ontologyVersion,
       shouldSign,
       privateKeyPath,
+      verificationMethod,
       outputDir = "./output",
     } = executableParams;
 
@@ -115,7 +116,9 @@ export class MainController {
       finalShape = await this.signatureModule.signDocument(
         ontologyVersion,
         vcShape,
-        privateKeyPath
+        privateKeyPath,
+        verificationMethod
+
       );
       console.log("✅ Shape signed successfully.\n");
     } else {
@@ -136,6 +139,7 @@ export class MainController {
       ontologyVersion,
       shouldSign,
       privateKeyPath,
+      verificationMethod,
       outputDir = "./output",
     } = executableParams;
 
@@ -164,7 +168,8 @@ export class MainController {
       finalShape = await this.signatureModule.signDocument(
         ontologyVersion,
         vpShape,
-        privateKeyPath
+        privateKeyPath,
+        verificationMethod
       );
       console.log("✅ Shape signed successfully.\n");
       // console.log("finalShape", finalShape);

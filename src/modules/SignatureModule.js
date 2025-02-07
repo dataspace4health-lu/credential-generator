@@ -8,7 +8,7 @@ export class SignatureModule {
     console.log("🔒 [SignatureModule] Initialized successfully.");
   }
 
-  async signDocument(ontologyVersion, shape, privateKeyPath) {
+  async signDocument(ontologyVersion, shape, privateKeyPath, verificationMethod) {
     // console.log("✍️  [SignatureModule] Signing document...");
     let privateKey;
     // Step 1: Use the provided key if available
@@ -30,10 +30,10 @@ export class SignatureModule {
     let signedData;
     if (ontologyVersion === "22.10 (Tagus)") {
       console.log("🔑 [Tagus] Signing with JWS...");
-      signedData = await this.signWithJWS(shape, privateKey);
+      signedData = await this.signWithJWS(shape, privateKey, verificationMethod );
     } else if (ontologyVersion === "24.06 (Loire)") {
       console.log("🔑 [Loire] Signing with JWT...");
-      signedData = await this.signWithJWT(shape, privateKey);
+      signedData = await this.signWithJWT(shape, privateKey, verificationMethod);
     } else {
       throw new Error(`Unsupported ontology version: ${ontologyVersion}`);
     }
@@ -71,11 +71,11 @@ export class SignatureModule {
     return keys;
   }
 
-  async signWithJWS(data, privateKey, algorithm = "ES256") {
+  async signWithJWS(data, privateKey, verificationMethod, algorithm = "ES256") {
     const signer = new JsonWebSignature2020Signer({
       privateKey: privateKey,
       privateKeyAlg: algorithm,
-      verificationMethod: "did:web:dataspace4health.local#key-0",
+      verificationMethod: verificationMethod,
       // documentLoader: myDocumentLoader,
       safe: false,
     });
@@ -85,11 +85,11 @@ export class SignatureModule {
     return signedVC;
   }
 
-  async signWithJWT(data, privateKey, algorithm = "ES256") {
+  async signWithJWT(data, privateKey, verificationMethod,algorithm = "ES256") {
     const type = data.type[0] === "VerifiableCredential" ? "vc" : "vp";
     console.log("data.type", data.type);
-    privateKey.kid = "did:web:dataspace4health.local#key-0";
-    privateKey.iss = "did:web:dataspace4health.local";
+    privateKey.kid = verificationMethod;
+    privateKey.iss = verificationMethod.split("#")[0];
 
     // console.log(jwk);
 
