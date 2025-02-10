@@ -110,6 +110,7 @@ export class ParameterManager {
 
     return parameters;
   }
+}
 
   async collectFilesForVP() {
     console.log("📂 Collecting files for Verifiable Presentation (VP)...");
