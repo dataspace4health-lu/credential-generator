@@ -50,14 +50,19 @@ export class OutputManager {
     }
   }
 
-  async saveToFile(directory, fileName, data) {
+  async saveToFile(outputPath, defaultFileName, data) {
     try {
-      await fs.promises.mkdir(directory, { recursive: true });
-      const filePath = path.join(directory, fileName);
+      const filePath = outputPath.endsWith(".json")
+        ? outputPath
+        : path.join(outputPath, defaultFileName);
+
+      if (!fs.existsSync(path.dirname(filePath))) {
+        await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+      }
       await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2));
-      console.log(`File saved to: ${filePath}\n`);
+      console.log(`✅ File saved to: ${filePath}\n`);
     } catch (error) {
-      console.error("Error saving file:", error);
+      console.error("❌ Error saving file:", error);
     }
   }
 }
