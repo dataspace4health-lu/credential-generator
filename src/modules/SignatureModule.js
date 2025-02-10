@@ -5,7 +5,7 @@ import { JsonWebSignature2020Signer } from "@gaia-x/json-web-signature-2020";
 export class SignatureModule {
   constructor(outputManager) {
     this.outputManager = outputManager; // Use the output manager for key management
-    console.log("🔒 [SignatureModule] Initialized successfully.");
+    // console.log("🔒 [SignatureModule] Initialized successfully.");
   }
 
   async signDocument(ontologyVersion, shape, privateKeyPath, verificationMethod) {

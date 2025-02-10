@@ -3,7 +3,7 @@ import readline from "readline";
 
 (async () => {
   try {
-    console.log("Initializing the application...");
+    // console.log("Initializing the application...");
 
     // Instantiate the MainController
     const mainController = new MainController();

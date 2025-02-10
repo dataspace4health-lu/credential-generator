@@ -21,10 +21,24 @@ export class ParameterManager {
     console.log("🔍 Parsing command-line arguments...");
     const parsedArgs = {};
     argv.forEach((arg) => {
-      const [key, value] = arg.split("=");
+      const [key, value] = arg.split(/[:=]/);
       parsedArgs[key.replace("--", "")] = value;
     });
     return parsedArgs;
+  }
+
+  displayHelp() {
+    console.log(`
+        Options:
+          --credentialType=<type>       Specify the credential type ( Verifiable Credential (VC) or Verifiable Presentation (VP))
+          --type=<type>                 Specify the type of the shape
+          --ontologyVersion=<version>   Specify the ontology version ("22.10 (Tagus)" or "24.06 (Loire)")
+          --shouldSign=<true|false>     Specify whether to sign the shape
+          --privateKeyPath=<path>       Specify the path to the private key for signing
+          --verificationMethod=<method> Specify the verification method
+          --output=<path>               Specify the output directory or file path
+          --help                        Display this help message
+`);
   }
 
   async collectExecutableParameters(parameters, selfDescriptionModule) {
@@ -77,40 +91,40 @@ export class ParameterManager {
         validTypes
       );
 
-    if (
-      parameters.type === "LocalRegistrationNumber" ||
-      parameters.type === "legalRegistrationNumber"
-    ) {
-      console.log("🔍 RegistrationNumber type detected.");
-      return parameters;
-    }
+      if (
+        parameters.type === "LocalRegistrationNumber" ||
+        parameters.type === "legalRegistrationNumber"
+      ) {
+        console.log("🔍 RegistrationNumber type detected.");
+        return parameters;
+      }
 
-    // Ask if the user wants to sign
-    parameters.shouldSign = await this.askForConfirmation(
-      "✍️  Do you want to sign the generated shape?"
-    );
-
-    // If signing, ask whether to use a private key
-    if (parameters.shouldSign) {
-      const useOwnKey = await this.askForConfirmation(
-        "🔑 Do you want to use your own signing key?",
-        false
+      // Ask if the user wants to sign
+      parameters.shouldSign = await this.askForConfirmation(
+        "✍️  Do you want to sign the generated shape?"
       );
-      if (useOwnKey) {
-        parameters.privateKeyPath = await this.askForFilePath(
-          "Enter the path to your private key file:"
+
+      // If signing, ask whether to use a private key
+      if (parameters.shouldSign) {
+        const useOwnKey = await this.askForConfirmation(
+          "🔑 Do you want to use your own signing key?",
+          false
         );
-        parameters.verificationMethod = await this.askForVerificationMethod();
-      } else {
-        console.log("🔑 Using default signing key...\n");
-        parameters.privateKey = false; // Set default signing key logic if needed
-        parameters.verificationMethod = "did:web:dataspace4health.local#key-0";
+        if (useOwnKey) {
+          parameters.privateKeyPath = await this.askForFilePath(
+            "Enter the path to your private key file:"
+          );
+          parameters.verificationMethod = await this.askForVerificationMethod();
+        } else {
+          console.log("🔑 Using default signing key...\n");
+          parameters.privateKey = false; // Set default signing key logic if needed
+          parameters.verificationMethod =
+            "did:web:dataspace4health.local#key-0";
+        }
       }
     }
-
     return parameters;
   }
-}
 
   async collectFilesForVP() {
     console.log("📂 Collecting files for Verifiable Presentation (VP)...");

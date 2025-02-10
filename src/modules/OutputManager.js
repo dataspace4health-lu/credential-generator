@@ -6,7 +6,7 @@ export class OutputManager {
     this.keyDir = "./output/keys";
     this.privateKeyPath = path.join(this.keyDir, "privateKey.json");
     this.publicKeyPath = path.join(this.keyDir, "publicKey.json");
-    console.log("📂 [OutputManager] Initialized successfully.");
+    // console.log("📂 [OutputManager] Initialized successfully.");
   }
 
   async saveKeys(publicKey, privateKey) {
