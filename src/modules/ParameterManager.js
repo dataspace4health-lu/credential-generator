@@ -240,28 +240,36 @@ export class ParameterManager {
       if (required && !input) {
         return `⚠️ This property is required.`;
       }
-
-      // Special case for gx:legalRegistrationNumber (URL validation)
-      if (
-        property === "gx:legalRegistrationNumber" ||
-        property === "gx:registrationNumber" ||
-        property === "gx:gaiaxTermsAndConditions" ||
-        property === "gx:url"
-      ) {
-        if (!validator.isURL(input)) {
-          return `⚠️ Value must be a valid URL (e.g., https://example.com/credential).`;
+    
+      // Define property groups for special validations
+      const uuidProperties = [
+        "gx:legalRegistrationNumber",
+        "gx:registrationNumber",
+        "gx:gaiaxTermsAndConditions"
+      ];
+      const urlProperty = "gx:url";
+      const addressProperties = [
+        "gx:headquarterAddress",
+        "gx:legalAddress",
+        "gx:headquartersAddress"
+      ];
+    
+      // Special case for UUID and URL validations
+      if ([urlProperty, ...uuidProperties].includes(property)) {
+        if (property === urlProperty) {
+          if (!validator.isURL(input)) {
+            return `⚠️ Value must be a valid URL (e.g., https://example.com/credential).`;
+          }
+        } else {
+          if (!validator.isUUID(input)) {
+            return `⚠️ Value must be a valid UUID.`;
+          }
         }
         return true;
       }
-
-      // Special case for gx:headquarterAddress and gx:legalAddress (XX-XX format)
-      if (
-        [
-          "gx:headquarterAddress",
-          "gx:legalAddress",
-          "gx:headquartersAddress",
-        ].includes(property)
-      ) {
+    
+      // Special case for address properties (XX-XX format)
+      if (addressProperties.includes(property)) {
         if (!countryRegions.includes(input)) {
           return `⚠️ Address must be one of the valid country regions (e.g., LU-CA).`;
         }
