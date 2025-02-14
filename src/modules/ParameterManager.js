@@ -98,29 +98,27 @@ export class ParameterManager {
         console.log("🔍 RegistrationNumber type detected.");
         return parameters;
       }
+    }
+    // Ask if the user wants to sign
+    parameters.shouldSign = await this.askForConfirmation(
+      "✍️  Do you want to sign the generated shape?"
+    );
 
-      // Ask if the user wants to sign
-      parameters.shouldSign = await this.askForConfirmation(
-        "✍️  Do you want to sign the generated shape?"
+    // If signing, ask whether to use a private key
+    if (parameters.shouldSign) {
+      const useOwnKey = await this.askForConfirmation(
+        "🔑 Do you want to use your own signing key?",
+        false
       );
-
-      // If signing, ask whether to use a private key
-      if (parameters.shouldSign) {
-        const useOwnKey = await this.askForConfirmation(
-          "🔑 Do you want to use your own signing key?",
-          false
+      if (useOwnKey) {
+        parameters.privateKeyPath = await this.askForFilePath(
+          "Enter the path to your private key file:"
         );
-        if (useOwnKey) {
-          parameters.privateKeyPath = await this.askForFilePath(
-            "Enter the path to your private key file:"
-          );
-          parameters.verificationMethod = await this.askForVerificationMethod();
-        } else {
-          console.log("🔑 Using default signing key...\n");
-          parameters.privateKey = false; // Set default signing key logic if needed
-          parameters.verificationMethod =
-            "did:web:dataspace4health.local#key-0";
-        }
+        parameters.verificationMethod = await this.askForVerificationMethod();
+      } else {
+        console.log("🔑 Using default signing key...\n");
+        parameters.privateKey = false; // Set default signing key logic if needed
+        parameters.verificationMethod = "did:web:dataspace4health.local#key-0";
       }
     }
     return parameters;
