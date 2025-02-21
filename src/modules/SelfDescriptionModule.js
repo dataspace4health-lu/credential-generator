@@ -165,7 +165,9 @@ export class SelfDescriptionModule {
         `Type '${type}' is not valid for ontology version '${version}'.`
       );
     }
-
+    // Step 2: Add predefined missing properties for specific types
+    this.addMissingProperties(type, properties);
+    console.log("properties", properties);
     // Step 3: Collect all attribute values from the user
     const collectedProperties =
       await this.parameterManager.collectAllProperties(properties);
@@ -201,13 +203,16 @@ export class SelfDescriptionModule {
       issuer: "https://dataspace4health.local",
       credentialSubject: {
         id: "https://dataspace4health.local/participants/ntt/" + uuid4(),
-        type: type,
+        type: `gx:${type}`,
         ...properties,
       },
     };
 
     if (ontologyVersion === "22.10 (Tagus)") {
-      shapeObject["@context"] = ["https://www.w3.org/2018/credentials/v1"];
+      shapeObject["@context"] = [
+        "https://www.w3.org/2018/credentials/v1",
+        "https://registry.lab.gaia-x.eu/development/api/trusted-shape-registry/v1/shapes/jsonld/trustframework#",
+      ];
       shapeObject.issuanceDate = new Date().toISOString();
     } else if (ontologyVersion === "24.06 (Loire)") {
       shapeObject["@context"] = [
@@ -257,5 +262,36 @@ export class SelfDescriptionModule {
     }
 
     return vpShapeObject;
+  }
+  addMissingProperties(type, properties) {
+    console.log("Add missing properties for type:", type);
+    const missingPropertiesMap = {
+      LegalParticipant: {
+        "gx:legalName": {
+          description: "Legal binding name",
+          range: "string",
+          required: false,
+        },
+        "gx:description": {
+          description: "Textual description of this organization",
+          range: "string",
+          required: false,
+        },
+        "gx-terms-and-conditions:gaiaxTermsAndConditions": {
+          description: "sha256 hash of the document",
+          range: "string",
+          required: true,
+        },
+      },
+    };
+
+    if (missingPropertiesMap[type]) {
+      const predefinedProperties = missingPropertiesMap[type];
+      for (const [key, value] of Object.entries(predefinedProperties)) {
+        if (!properties[key]) {
+          properties[key] = value;
+        }
+      }
+    }
   }
 }
