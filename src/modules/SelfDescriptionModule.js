@@ -167,7 +167,7 @@ export class SelfDescriptionModule {
     }
     // Step 2: Add predefined missing properties for specific types
     this.addMissingProperties(type, properties);
-    console.log("properties", properties);
+    // console.log("properties", properties);
     // Step 3: Collect all attribute values from the user
     const collectedProperties =
       await this.parameterManager.collectAllProperties(properties);
