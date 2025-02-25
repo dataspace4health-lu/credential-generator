@@ -90,7 +90,10 @@ export class ParameterManager {
         parameters.type,
         validTypes
       );
-
+      if (parameters.type === "LegalParticipant") {
+        console.log("🔍 LegalParticipant type detected.");
+        parameters.vcUrl = await this.askForUrl();
+      }
       if (
         parameters.type === "LocalRegistrationNumber" ||
         parameters.type === "legalRegistrationNumber"
@@ -106,6 +109,10 @@ export class ParameterManager {
 
     // If signing, ask whether to use a private key
     if (parameters.shouldSign) {
+      var issuer = await this.askForIssuer(
+        "Enter the issuer DID:"
+      );
+      parameters.issuer = issuer;
       const useOwnKey = await this.askForConfirmation(
         "🔑 Do you want to use your own signing key?",
         false
@@ -118,7 +125,8 @@ export class ParameterManager {
       } else {
         console.log("🔑 Using default signing key...\n");
         parameters.privateKey = false; // Set default signing key logic if needed
-        parameters.verificationMethod = "did:web:dataspace4health.local#key-0";
+        parameters.verificationMethod = issuer + "#key-0";
+        // parameters.verificationMethod = "did:web:dataspace4health.local#key-0";
       }
     }
     return parameters;
@@ -364,6 +372,42 @@ export class ParameterManager {
     return answer.type;
   }
 
+  async askForIssuer() {
+    const answer = await inquirer.prompt([
+      {
+        type: "input",
+        name: "issuer",
+        message: "🔍 Enter your issuer DID:",
+        validate: (input) => {
+          // Regular expression for validating a DID without allowing fragments (#...)
+          const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+$/;
+
+          if (validator.isURL(input) || didRegex.test(input)) {
+            return true;
+          }
+          return "⚠️ Invalid issuer. Use a valid DID (e.g., did:web:example.com).";
+        },
+      },
+    ]);
+    return answer.issuer;
+  }
+
+  async askForUrl() {
+    const answer = await inquirer.prompt([
+      {
+        type: "input",
+        name: "url",
+        message: "🔍 Enter the URL of the legal participant:",
+        validate: (input) => {
+          if (validator.isURL(input)) {
+            return true;
+          }
+          return "⚠️ Invalid URL. Please enter a valid URL.";
+        },
+      },
+    ]);
+    return answer.url;
+  }
   async askFromChoices(message, choices) {
     const answer = await inquirer.prompt([
       {

@@ -41,6 +41,7 @@ export class MainController {
           this.selfDescriptionModule
         );
 
+        console.log("executableParams", executableParams);
         if (parameters.credentialType === "Verifiable Presentation (VP)") {
           await this.handleVerifiablePresentation(executableParams);
         } else {
@@ -67,6 +68,7 @@ export class MainController {
       ontologyVersion,
       shouldSign,
       privateKeyPath,
+      vcUrl,
       verificationMethod,
       output = "./output",
     } = executableParams;
@@ -107,10 +109,7 @@ export class MainController {
     }
 
     // General case for other types
-    vcShape = await this.selfDescriptionModule.generateShape(
-      type,
-      ontologyVersion
-    );
+    vcShape = await this.selfDescriptionModule.generateShape(executableParams);
 
     console.log("✅ Shape generated successfully.\n");
 

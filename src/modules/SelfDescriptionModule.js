@@ -3,6 +3,7 @@ import yaml from "js-yaml";
 import { v4 as uuid4 } from "uuid";
 import fs from "fs/promises";
 import path from "path";
+import { console } from "inspector";
 
 export class SelfDescriptionModule {
   constructor(parameterManager) {
@@ -142,14 +143,16 @@ export class SelfDescriptionModule {
     };
   }
 
-  async generateShape(type, version) {
+  async generateShape(executableParams) {
+    const { type, ontologyVersion, vcUrl } = executableParams;
+
     // console.log(
-    //   `Generating shape for type: ${type} and version: ${version}...`
+    //   `Generating shape for type: ${type} and version: ${ontologyVersion}...`
     // );
 
     // Step 1: Load shape metadata (hardcoded for now, can transition to SHACL)
     const typesAndProperties = await this.fetchOntologyTypesAndProperties(
-      version
+      ontologyVersion
     );
 
     const { properties, preAssignedProperties } = typesAndProperties[type];
@@ -187,22 +190,44 @@ export class SelfDescriptionModule {
     // console.log(`📋 Collected properties for type '${type}':`, finalProperties);
 
     // Step 4: Fit the collected data into the shape object
-    const shapeObject = this.createVcShapeObject(
-      type,
-      finalProperties,
-      version
-    );
+    const shapeObject = this.createVcShapeObject(executableParams, finalProperties);
+    console.log("shapeObject", shapeObject);
 
     return shapeObject;
   }
 
-  createVcShapeObject(type, properties, ontologyVersion) {
+  createVcShapeObject(executableParams, properties) {
+    const { type, ontologyVersion, vcUrl, output, issuer } = executableParams;
+    
+    let id, credentialSubjectId;
+    
+    if (type === "LegalParticipant") {
+        if (output) {
+          if (output.endsWith(".json")) {
+            const fileName = path.basename(output).replace(".json", "");
+            console.log("Case of fileName", fileName);
+            id = `${vcUrl}/${fileName}`;
+          } else {
+            console.log("Case of output but its folder only");
+            id = `${vcUrl}/${type}`;
+            console.log("id", id);
+          }
+        } else {
+          console.log("Case of no output", type);
+            id = `${vcUrl}/${type}`;
+        }
+        credentialSubjectId = id;
+    } else {
+        id = uuid4();
+        credentialSubjectId = uuid4();
+    }
+    
     let shapeObject = {
-      id: "https://dataspace4health.local/participants/ntt/" + uuid4(),
-      type: ["VerifiableCredential"],
-      issuer: "https://dataspace4health.local",
+      id,
+      type: ["VerifiableCredential", `gx:${type}`],
+      issuer: issuer,
       credentialSubject: {
-        id: "https://dataspace4health.local/participants/ntt/" + uuid4(),
+        id: credentialSubjectId,
         type: `gx:${type}`,
         ...properties,
       },
@@ -227,11 +252,26 @@ export class SelfDescriptionModule {
 
   async generateVpShape(ontologyVersion, selectedFiles) {
     const verifiableCredentials = [];
+    let legalParticipantVC = null;
 
     for (const file of selectedFiles) {
       const filePath = path.resolve(file);
       const fileContent = await fs.readFile(filePath, "utf8");
       verifiableCredentials.push(JSON.parse(fileContent));
+
+      const parsedContent = JSON.parse(fileContent);
+
+        // Check if the credential contains "gx:LegalParticipant" in the "type" array
+        if (parsedContent.type && parsedContent.type.includes("gx:LegalParticipant")) {
+            legalParticipantVC = parsedContent;
+        } else {
+            verifiableCredentials.push(parsedContent);
+        }
+    }
+
+    // If a legal participant VC was found, make sure it's the first in the array
+    if (legalParticipantVC) {
+      verifiableCredentials.unshift(legalParticipantVC);
     }
     // console.log("verifiableCredentials", verifiableCredentials);
 
@@ -239,6 +279,7 @@ export class SelfDescriptionModule {
 
     if (ontologyVersion === "22.10 (Tagus)") {
       vpShapeObject = {
+        id:  uuid4(),
         type: ["VerifiablePresentation"],
         verifiableCredential: verifiableCredentials,
         "@context": ["https://www.w3.org/2018/credentials/v1"],
