@@ -41,7 +41,6 @@ export class MainController {
           this.selfDescriptionModule
         );
 
-        console.log("executableParams", executableParams);
         if (parameters.credentialType === "Verifiable Presentation (VP)") {
           await this.handleVerifiablePresentation(executableParams);
         } else {

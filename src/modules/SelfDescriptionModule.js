@@ -191,7 +191,6 @@ export class SelfDescriptionModule {
 
     // Step 4: Fit the collected data into the shape object
     const shapeObject = this.createVcShapeObject(executableParams, finalProperties);
-    console.log("shapeObject", shapeObject);
 
     return shapeObject;
   }
@@ -205,15 +204,11 @@ export class SelfDescriptionModule {
         if (output) {
           if (output.endsWith(".json")) {
             const fileName = path.basename(output).replace(".json", "");
-            console.log("Case of fileName", fileName);
             id = `${vcUrl}/${fileName}`;
           } else {
-            console.log("Case of output but its folder only");
             id = `${vcUrl}/${type}`;
-            console.log("id", id);
           }
         } else {
-          console.log("Case of no output", type);
             id = `${vcUrl}/${type}`;
         }
         credentialSubjectId = id;

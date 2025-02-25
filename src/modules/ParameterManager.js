@@ -91,7 +91,6 @@ export class ParameterManager {
         validTypes
       );
       if (parameters.type === "LegalParticipant") {
-        console.log("🔍 LegalParticipant type detected.");
         parameters.vcUrl = await this.askForUrl();
       }
       if (
