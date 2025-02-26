@@ -136,7 +136,6 @@ export class MainController {
     // console.log(`${type} shape handling completed successfully!`);
   }
   async handleVerifiablePresentation(executableParams) {
-    console.log("parameters", executableParams);
     const {
       credentialType,
       type,
