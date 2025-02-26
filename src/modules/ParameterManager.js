@@ -288,14 +288,6 @@ export class ParameterManager {
         }
         return true;
       }
-      if (property === "gx-terms-and-conditions:gaiaxTermsAndConditions") {
-        const expectedHash =
-          "70c1d713215f95191a11d38fe2341faed27d19e083917bc8732ca4fea4976700";
-        if (input !== expectedHash) {
-          return `⚠️ Value must be the exact SHA-256 hash: ${expectedHash}`;
-        }
-        return true;
-      }
 
       switch (range) {
         case "integer":
