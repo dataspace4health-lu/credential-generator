@@ -3,7 +3,7 @@ import yaml from "js-yaml";
 import { v4 as uuid4 } from "uuid";
 import fs from "fs/promises";
 import path from "path";
-
+import { createHash } from "crypto";
 export class SelfDescriptionModule {
   constructor(parameterManager) {
     this.parameterManager = parameterManager;
@@ -142,14 +142,16 @@ export class SelfDescriptionModule {
     };
   }
 
-  async generateShape(type, version) {
+  async generateShape(executableParams) {
+    const { type, ontologyVersion, vcUrl } = executableParams;
+
     // console.log(
-    //   `Generating shape for type: ${type} and version: ${version}...`
+    //   `Generating shape for type: ${type} and version: ${ontologyVersion}...`
     // );
 
     // Step 1: Load shape metadata (hardcoded for now, can transition to SHACL)
     const typesAndProperties = await this.fetchOntologyTypesAndProperties(
-      version
+      ontologyVersion
     );
 
     const { properties, preAssignedProperties } = typesAndProperties[type];
@@ -165,7 +167,9 @@ export class SelfDescriptionModule {
         `Type '${type}' is not valid for ontology version '${version}'.`
       );
     }
-
+    // Step 2: Add predefined missing properties for specific types
+    this.addMissingProperties(type, properties, preAssignedProperties, typesAndProperties);
+    // console.log("properties", properties);
     // Step 3: Collect all attribute values from the user
     const collectedProperties =
       await this.parameterManager.collectAllProperties(properties);
@@ -182,32 +186,52 @@ export class SelfDescriptionModule {
       ...filteredCollectedProperties,
     };
 
-    // console.log(`📋 Collected properties for type '${type}':`, finalProperties);
+    console.log(`📋 Collected properties for type '${type}'`);
 
     // Step 4: Fit the collected data into the shape object
-    const shapeObject = this.createVcShapeObject(
-      type,
-      finalProperties,
-      version
-    );
+    const shapeObject = this.createVcShapeObject(executableParams, finalProperties);
 
     return shapeObject;
   }
 
-  createVcShapeObject(type, properties, ontologyVersion) {
+  createVcShapeObject(executableParams, properties) {
+    const { type, ontologyVersion, vcUrl, output, issuer } = executableParams;
+    
+    let id, credentialSubjectId;
+    
+    if (type === "LegalParticipant") {
+        if (output) {
+          if (output.endsWith(".json")) {
+            const fileName = path.basename(output);
+            id = `${vcUrl}/${fileName}`;
+          } else {
+            id = `${vcUrl}/${type}` + ".json";
+          }
+        } else {
+            id = `${vcUrl}/${type}` + ".json";
+        }
+        credentialSubjectId = id;
+    } else {
+        id = uuid4();
+        credentialSubjectId = id;
+    }
+    
     let shapeObject = {
-      id: "https://dataspace4health.local/participants/ntt/" + uuid4(),
-      type: ["VerifiableCredential"],
-      issuer: "https://dataspace4health.local",
+      id,
+      type: ["VerifiableCredential", `gx:${type}`],
+      issuer: issuer,
       credentialSubject: {
-        id: "https://dataspace4health.local/participants/ntt/" + uuid4(),
-        type: type,
+        id: credentialSubjectId,
+        type: `gx:${type}`,
         ...properties,
       },
     };
 
     if (ontologyVersion === "22.10 (Tagus)") {
-      shapeObject["@context"] = ["https://www.w3.org/2018/credentials/v1"];
+      shapeObject["@context"] = [
+        "https://www.w3.org/2018/credentials/v1",
+        "https://registry.lab.gaia-x.eu/development/api/trusted-shape-registry/v1/shapes/jsonld/trustframework#",
+      ];
       shapeObject.issuanceDate = new Date().toISOString();
     } else if (ontologyVersion === "24.06 (Loire)") {
       shapeObject["@context"] = [
@@ -222,11 +246,25 @@ export class SelfDescriptionModule {
 
   async generateVpShape(ontologyVersion, selectedFiles) {
     const verifiableCredentials = [];
+    let legalParticipantVC = null;
 
     for (const file of selectedFiles) {
       const filePath = path.resolve(file);
       const fileContent = await fs.readFile(filePath, "utf8");
-      verifiableCredentials.push(JSON.parse(fileContent));
+
+      const parsedContent = JSON.parse(fileContent);
+
+        // Check if the credential contains "gx:LegalParticipant" in the "type" array
+        if (parsedContent.type && parsedContent.type.includes("gx:LegalParticipant")) {
+            legalParticipantVC = parsedContent;
+        } else {
+            verifiableCredentials.push(parsedContent);
+        }
+    }
+
+    // If a legal participant VC was found, make sure it's the first in the array
+    if (legalParticipantVC) {
+      verifiableCredentials.unshift(legalParticipantVC);
     }
     // console.log("verifiableCredentials", verifiableCredentials);
 
@@ -234,6 +272,7 @@ export class SelfDescriptionModule {
 
     if (ontologyVersion === "22.10 (Tagus)") {
       vpShapeObject = {
+        id:  uuid4(),
         type: ["VerifiablePresentation"],
         verifiableCredential: verifiableCredentials,
         "@context": ["https://www.w3.org/2018/credentials/v1"],
@@ -253,9 +292,43 @@ export class SelfDescriptionModule {
           "https://www.w3.org/ns/credentials/examples/v2",
         ],
       };
-      console.log("vpShapeObject", vpShapeObject);
     }
 
     return vpShapeObject;
+  }
+  addMissingProperties(type, properties, preAssignedProperties, typesAndProperties) {
+    const missingPropertiesMap = {
+      LegalParticipant: {
+        "gx:legalName": {
+          description: "Legal binding name",
+          range: "string",
+          required: false,
+        },
+        "gx:description": {
+          description: "Textual description of this organization",
+          range: "string",
+          required: false,
+        }
+      },
+    };
+
+    if (missingPropertiesMap[type]) {
+      const predefinedProperties = missingPropertiesMap[type];
+      for (const [key, value] of Object.entries(predefinedProperties)) {
+        if (!properties[key]) {
+          properties[key] = value;
+        }
+      }
+    }
+    // Compute the SHA-256 hash and assign it to the preAssignedProperties
+    if (type === "LegalParticipant") {
+      const termsAndConditionsText = typesAndProperties["GaiaXTermsAndConditions"].preAssignedProperties["gx:termsAndConditions"];
+      // console.log("Terms And Conditions Text", termsAndConditionsText);
+      const hash = createHash("sha256")
+      .update(termsAndConditionsText)
+      .digest("hex");
+      // console.log("hash", hash);
+      preAssignedProperties["gx-terms-and-conditions:gaiaxTermsAndConditions"] = hash;
+    }
   }
 }

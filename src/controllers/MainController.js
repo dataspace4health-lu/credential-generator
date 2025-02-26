@@ -22,6 +22,11 @@ export class MainController {
     console.log("   Gaia-X Self-Description Generator    ");
     console.log("========================================\n");
 
+    if (argv.includes("--help")) {
+      this.parameterManager.displayHelp();
+      return;
+    }
+
     try {
       console.log("🚀 Starting workflow...\n");
 
@@ -62,8 +67,9 @@ export class MainController {
       ontologyVersion,
       shouldSign,
       privateKeyPath,
+      vcUrl,
       verificationMethod,
-      outputDir = "./output",
+      output = "./output",
     } = executableParams;
 
     console.log(`🔧 Executing workflow for type: ${type}...\n`);
@@ -96,16 +102,13 @@ export class MainController {
 
       // Save the LRN shape directly
       console.log("Saving the LRN shape...");
-      await this.outputManager.saveToFile(outputDir, `${type}.json`, vcShape);
+      await this.outputManager.saveToFile(output, `${type}.json`, vcShape);
       console.log("📂 LRN shape saved successfully.");
       return; // Exit the function to avoid signing logic
     }
 
     // General case for other types
-    vcShape = await this.selfDescriptionModule.generateShape(
-      type,
-      ontologyVersion
-    );
+    vcShape = await this.selfDescriptionModule.generateShape(executableParams);
 
     console.log("✅ Shape generated successfully.\n");
 
@@ -128,7 +131,7 @@ export class MainController {
 
     // Save the signed shape
     console.log("💾 Saving the final shape...");
-    await this.outputManager.saveToFile(outputDir, `${type}.json`, finalShape);
+    await this.outputManager.saveToFile(output, `${type}.json`, finalShape);
 
     // console.log(`${type} shape handling completed successfully!`);
   }
@@ -141,7 +144,7 @@ export class MainController {
       shouldSign,
       privateKeyPath,
       verificationMethod,
-      outputDir = "./output",
+      output = "./output",
     } = executableParams;
 
     console.log("📋 Handling Verifiable Presentation (VP) workflow...");
@@ -180,7 +183,7 @@ export class MainController {
 
     console.log("Saving the VP...");
     this.outputManager.saveToFile(
-      outputDir,
+      output,
       "verifiable_presentation.json",
       finalShape
     );

@@ -21,10 +21,24 @@ export class ParameterManager {
     console.log("🔍 Parsing command-line arguments...");
     const parsedArgs = {};
     argv.forEach((arg) => {
-      const [key, value] = arg.split("=");
+      const [key, value] = arg.split(/[:=]/);
       parsedArgs[key.replace("--", "")] = value;
     });
     return parsedArgs;
+  }
+
+  displayHelp() {
+    console.log(`
+        Options:
+          --credentialType=<type>       Specify the credential type ( Verifiable Credential (VC) or Verifiable Presentation (VP))
+          --type=<type>                 Specify the type of the shape
+          --ontologyVersion=<version>   Specify the ontology version ("22.10 (Tagus)" or "24.06 (Loire)")
+          --shouldSign=<true|false>     Specify whether to sign the shape
+          --privateKeyPath=<path>       Specify the path to the private key for signing
+          --verificationMethod=<method> Specify the verification method
+          --output=<path>               Specify the output directory or file path
+          --help                        Display this help message
+`);
   }
 
   async collectExecutableParameters(parameters, selfDescriptionModule) {
@@ -76,15 +90,17 @@ export class ParameterManager {
         parameters.type,
         validTypes
       );
-
-    if (
-      parameters.type === "LocalRegistrationNumber" ||
-      parameters.type === "legalRegistrationNumber"
-    ) {
-      console.log("🔍 RegistrationNumber type detected.");
-      return parameters;
+      if (parameters.type === "LegalParticipant") {
+        parameters.vcUrl = await this.askForUrl();
+      }
+      if (
+        parameters.type === "LocalRegistrationNumber" ||
+        parameters.type === "legalRegistrationNumber"
+      ) {
+        console.log("🔍 RegistrationNumber type detected.");
+        return parameters;
+      }
     }
-
     // Ask if the user wants to sign
     parameters.shouldSign = await this.askForConfirmation(
       "✍️  Do you want to sign the generated shape?"
@@ -92,6 +108,10 @@ export class ParameterManager {
 
     // If signing, ask whether to use a private key
     if (parameters.shouldSign) {
+      var issuer = await this.askForIssuer(
+        "Enter the issuer DID:"
+      );
+      parameters.issuer = issuer;
       const useOwnKey = await this.askForConfirmation(
         "🔑 Do you want to use your own signing key?",
         false
@@ -104,13 +124,12 @@ export class ParameterManager {
       } else {
         console.log("🔑 Using default signing key...\n");
         parameters.privateKey = false; // Set default signing key logic if needed
-        parameters.verificationMethod = "did:web:dataspace4health.local#key-0";
+        parameters.verificationMethod = issuer + "#key-0";
+        // parameters.verificationMethod = "did:web:dataspace4health.local#key-0";
       }
     }
-
     return parameters;
   }
-}
 
   async collectFilesForVP() {
     console.log("📂 Collecting files for Verifiable Presentation (VP)...");
@@ -226,28 +245,36 @@ export class ParameterManager {
       if (required && !input) {
         return `⚠️ This property is required.`;
       }
-
-      // Special case for gx:legalRegistrationNumber (URL validation)
-      if (
-        property === "gx:legalRegistrationNumber" ||
-        property === "gx:registrationNumber" ||
-        property === "gx:gaiaxTermsAndConditions" ||
-        property === "gx:url"
-      ) {
-        if (!validator.isURL(input)) {
-          return `⚠️ Value must be a valid URL (e.g., https://example.com/credential).`;
+    
+      // Define property groups for special validations
+      const uuidProperties = [
+        "gx:legalRegistrationNumber",
+        "gx:registrationNumber",
+        "gx:gaiaxTermsAndConditions"
+      ];
+      const urlProperty = "gx:url";
+      const addressProperties = [
+        "gx:headquarterAddress",
+        "gx:legalAddress",
+        "gx:headquartersAddress"
+      ];
+    
+      // Special case for UUID and URL validations
+      if ([urlProperty, ...uuidProperties].includes(property)) {
+        if (property === urlProperty) {
+          if (!validator.isURL(input)) {
+            return `⚠️ Value must be a valid URL (e.g., https://example.com/credential).`;
+          }
+        } else {
+          if (!validator.isUUID(input)) {
+            return `⚠️ Value must be a valid UUID.`;
+          }
         }
         return true;
       }
-
-      // Special case for gx:headquarterAddress and gx:legalAddress (XX-XX format)
-      if (
-        [
-          "gx:headquarterAddress",
-          "gx:legalAddress",
-          "gx:headquartersAddress",
-        ].includes(property)
-      ) {
+    
+      // Special case for address properties (XX-XX format)
+      if (addressProperties.includes(property)) {
         if (!countryRegions.includes(input)) {
           return `⚠️ Address must be one of the valid country regions (e.g., LU-CA).`;
         }
@@ -256,6 +283,14 @@ export class ParameterManager {
       if (property === "gx:hash") {
         const expectedHash =
           "4bd7554097444c960292b4726c2efa1373485e8a5565d94d41195214c5e0ceb3";
+        if (input !== expectedHash) {
+          return `⚠️ Value must be the exact SHA-256 hash: ${expectedHash}`;
+        }
+        return true;
+      }
+      if (property === "gx-terms-and-conditions:gaiaxTermsAndConditions") {
+        const expectedHash =
+          "70c1d713215f95191a11d38fe2341faed27d19e083917bc8732ca4fea4976700";
         if (input !== expectedHash) {
           return `⚠️ Value must be the exact SHA-256 hash: ${expectedHash}`;
         }
@@ -336,6 +371,42 @@ export class ParameterManager {
     return answer.type;
   }
 
+  async askForIssuer() {
+    const answer = await inquirer.prompt([
+      {
+        type: "input",
+        name: "issuer",
+        message: "🔍 Enter your issuer DID:",
+        validate: (input) => {
+          // Regular expression for validating a DID without allowing fragments (#...)
+          const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+$/;
+
+          if (validator.isURL(input) || didRegex.test(input)) {
+            return true;
+          }
+          return "⚠️ Invalid issuer. Use a valid DID (e.g., did:web:example.com).";
+        },
+      },
+    ]);
+    return answer.issuer;
+  }
+
+  async askForUrl() {
+    const answer = await inquirer.prompt([
+      {
+        type: "input",
+        name: "url",
+        message: "🔍 Enter the URL of the legal participant:",
+        validate: (input) => {
+          if (validator.isURL(input)) {
+            return true;
+          }
+          return "⚠️ Invalid URL. Please enter a valid URL.";
+        },
+      },
+    ]);
+    return answer.url;
+  }
   async askFromChoices(message, choices) {
     const answer = await inquirer.prompt([
       {

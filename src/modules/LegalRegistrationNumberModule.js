@@ -2,7 +2,7 @@ import fetch from "node-fetch";
 
 export class LegalRegistrationNumberModule {
   constructor() {
-    console.log("✅ LegalRegistrationNumberModule initialized.");
+    // console.log("✅ LegalRegistrationNumberModule initialized.");
     // this.baseUrl = "https://wizard.lab.gaia-x.eu/api/legalRegistrationNumber";
     this.ontologyUrls = {
       "22.10 (Tagus)":
