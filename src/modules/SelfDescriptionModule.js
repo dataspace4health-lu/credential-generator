@@ -203,13 +203,13 @@ export class SelfDescriptionModule {
     if (type === "LegalParticipant") {
         if (output) {
           if (output.endsWith(".json")) {
-            const fileName = path.basename(output).replace(".json", "");
+            const fileName = path.basename(output);
             id = `${vcUrl}/${fileName}`;
           } else {
-            id = `${vcUrl}/${type}`;
+            id = `${vcUrl}/${type}` + ".json";
           }
         } else {
-            id = `${vcUrl}/${type}`;
+            id = `${vcUrl}/${type}` + ".json";
         }
         credentialSubjectId = id;
     } else {
