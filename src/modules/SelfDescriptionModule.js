@@ -252,7 +252,6 @@ export class SelfDescriptionModule {
     for (const file of selectedFiles) {
       const filePath = path.resolve(file);
       const fileContent = await fs.readFile(filePath, "utf8");
-      verifiableCredentials.push(JSON.parse(fileContent));
 
       const parsedContent = JSON.parse(fileContent);
 
