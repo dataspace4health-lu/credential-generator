@@ -186,7 +186,7 @@ export class SelfDescriptionModule {
       ...filteredCollectedProperties,
     };
 
-    console.log(`📋 Collected properties for type '${type}':`, finalProperties);
+    console.log(`📋 Collected properties for type '${type}'`);
 
     // Step 4: Fit the collected data into the shape object
     const shapeObject = this.createVcShapeObject(executableParams, finalProperties);
@@ -292,13 +292,11 @@ export class SelfDescriptionModule {
           "https://www.w3.org/ns/credentials/examples/v2",
         ],
       };
-      console.log("vpShapeObject", vpShapeObject);
     }
 
     return vpShapeObject;
   }
   addMissingProperties(type, properties, preAssignedProperties, typesAndProperties) {
-    console.log("Add missing properties for type:", type);
     const missingPropertiesMap = {
       LegalParticipant: {
         "gx:legalName": {
