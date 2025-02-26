@@ -214,7 +214,7 @@ export class SelfDescriptionModule {
         credentialSubjectId = id;
     } else {
         id = uuid4();
-        credentialSubjectId = uuid4();
+        credentialSubjectId = id;
     }
     
     let shapeObject = {
