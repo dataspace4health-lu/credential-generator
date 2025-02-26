@@ -3,8 +3,7 @@ import yaml from "js-yaml";
 import { v4 as uuid4 } from "uuid";
 import fs from "fs/promises";
 import path from "path";
-import { console } from "inspector";
-
+import { createHash } from "crypto";
 export class SelfDescriptionModule {
   constructor(parameterManager) {
     this.parameterManager = parameterManager;
@@ -169,7 +168,7 @@ export class SelfDescriptionModule {
       );
     }
     // Step 2: Add predefined missing properties for specific types
-    this.addMissingProperties(type, properties);
+    this.addMissingProperties(type, properties, preAssignedProperties, typesAndProperties);
     // console.log("properties", properties);
     // Step 3: Collect all attribute values from the user
     const collectedProperties =
@@ -187,7 +186,7 @@ export class SelfDescriptionModule {
       ...filteredCollectedProperties,
     };
 
-    // console.log(`📋 Collected properties for type '${type}':`, finalProperties);
+    console.log(`📋 Collected properties for type '${type}':`, finalProperties);
 
     // Step 4: Fit the collected data into the shape object
     const shapeObject = this.createVcShapeObject(executableParams, finalProperties);
@@ -298,7 +297,7 @@ export class SelfDescriptionModule {
 
     return vpShapeObject;
   }
-  addMissingProperties(type, properties) {
+  addMissingProperties(type, properties, preAssignedProperties, typesAndProperties) {
     console.log("Add missing properties for type:", type);
     const missingPropertiesMap = {
       LegalParticipant: {
@@ -311,12 +310,7 @@ export class SelfDescriptionModule {
           description: "Textual description of this organization",
           range: "string",
           required: false,
-        },
-        "gx-terms-and-conditions:gaiaxTermsAndConditions": {
-          description: "sha256 hash of the document",
-          range: "string",
-          required: true,
-        },
+        }
       },
     };
 
@@ -327,6 +321,16 @@ export class SelfDescriptionModule {
           properties[key] = value;
         }
       }
+    }
+    // Compute the SHA-256 hash and assign it to the preAssignedProperties
+    if (type === "LegalParticipant") {
+      const termsAndConditionsText = typesAndProperties["GaiaXTermsAndConditions"].preAssignedProperties["gx:termsAndConditions"];
+      // console.log("Terms And Conditions Text", termsAndConditionsText);
+      const hash = createHash("sha256")
+      .update(termsAndConditionsText)
+      .digest("hex");
+      // console.log("hash", hash);
+      preAssignedProperties["gx-terms-and-conditions:gaiaxTermsAndConditions"] = hash;
     }
   }
 }

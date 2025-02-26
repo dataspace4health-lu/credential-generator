@@ -12,6 +12,7 @@
   "dependencies": {
     "@gaia-x/json-web-signature-2020": "^2.3.0",
     "axios": "^1.7.9",
+    "crypto": "^1.0.1",
     "fetch": "^1.1.0",
     "fs": "^0.0.1-security",
     "inquirer": "^12.3.2",
