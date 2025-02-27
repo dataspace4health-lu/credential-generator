@@ -90,7 +90,7 @@ export class ParameterManager {
         parameters.type,
         validTypes
       );
-      if (parameters.type === "LegalParticipant") {
+      if (parameters.type === "LegalParticipant" ) {
         parameters.vcUrl = await this.askForUrl();
       }
       if (
@@ -245,24 +245,24 @@ export class ParameterManager {
       if (required && !input) {
         return `⚠️ This property is required.`;
       }
-    
+
       // Define property groups for special validations
       const uuidProperties = [
         "gx:legalRegistrationNumber",
         "gx:registrationNumber",
-        "gx:gaiaxTermsAndConditions"
+        "gx:gaiaxTermsAndConditions",
       ];
-      const urlProperty = "gx:url";
+      const urlProperties = ["gx:url", "gx:providedBy"];
       const addressProperties = [
         "gx:headquarterAddress",
         "gx:legalAddress",
-        "gx:headquartersAddress"
+        "gx:headquartersAddress",
       ];
-    
+
       // Special case for UUID and URL validations
-      if ([urlProperty, ...uuidProperties].includes(property)) {
-        if (property === urlProperty) {
-          if (!validator.isURL(input)) {
+      if ([...urlProperties, ...uuidProperties].includes(property)) {
+        if (urlProperties.includes(property)) {
+          if (!validator.isURL(input, { require_protocol: true })) {
             return `⚠️ Value must be a valid URL (e.g., https://example.com/credential).`;
           }
         } else {
@@ -272,7 +272,7 @@ export class ParameterManager {
         }
         return true;
       }
-    
+
       // Special case for address properties (XX-XX format)
       if (addressProperties.includes(property)) {
         if (!countryRegions.includes(input)) {
@@ -312,6 +312,98 @@ export class ParameterManager {
       return true;
     };
 
+    // Special case for gx:termsAndConditions
+    if (property === "gx:termsAndConditions") {
+      const answer = await inquirer.prompt([
+        {
+          type: "input",
+          name: "gx:URL",
+          message: `Enter URL for gx:termsAndConditions:`,
+          validate: (input) =>
+            validator.isURL(input, { require_protocol: true }) ||
+            `⚠️ Value must be a valid URL (e.g., https://example.com/terms).`,
+        },
+      ]);
+
+      return {
+        "gx:URL": answer["gx:URL"],
+        "gx:hash": "73fbf335-d1d5-43bb-9657-ec0e92a6e8fe", // Hardcoded for now
+      };
+    }
+
+    // Special case for gx:dataAccountExport
+    if (property === "gx:dataAccountExport") {
+      const answer = await inquirer.prompt([
+        {
+          type: "list",
+          name: "gx:requestType",
+          message: "Select request type for gx:dataAccountExport:",
+          choices: [
+            "API",
+            "email",
+            "webform",
+            "unregisteredLetter",
+            "registeredLetter",
+            "supportCenter",
+          ],
+        },
+        {
+          type: "list",
+          name: "gx:accessType",
+          message: "Select access type for gx:dataAccountExport:",
+          choices: ["digital", "physical"],
+        },
+        {
+          type: "input",
+          name: "gx:formatType",
+          message:
+            "Enter format type for gx:dataAccountExport (e.g., application/json):",
+          validate: (input) =>
+            /^\w+\/[-+.\w]+$/.test(input) ||
+            `⚠️ Format type must match pattern (e.g., application/json).`,
+        },
+      ]);
+
+      return {
+        "gx:requestType": answer["gx:requestType"],
+        "gx:accessType": answer["gx:accessType"],
+        "gx:formatType": answer["gx:formatType"],
+      };
+    }
+    if (property === "gx:dataProtectionRegime") {
+      const answer = await inquirer.prompt([
+        {
+          type: "list",
+          name: "gx:dataProtectionRegime",
+          message: "Select data protection regime:",
+          choices: [
+            {
+              name: "GDPR2016: General Data Protection Regulation / EEA",
+              value: "GDPR2016",
+            },
+            {
+              name: "LGPD2019: General Personal Data Protection Law (Lei Geral de Proteção de Dados Pessoais) / BRA",
+              value: "LGPD2019",
+            },
+            {
+              name: "PDPA2012: Personal Data Protection Act 2012 / SGP",
+              value: "PDPA2012",
+            },
+            {
+              name: "CCPA2018: California Consumer Privacy Act / US-CA",
+              value: "CCPA2018",
+            },
+            {
+              name: "VCDPA2021: Virginia Consumer Data Protection Act / US-VA",
+              value: "VCDPA2021",
+            },
+          ],
+        },
+      ]);
+      return  answer["gx:dataProtectionRegime"]
+    }
+
+    // Default case: Prompt for single property
     const answer = await inquirer.prompt([
       {
         type: "input",
@@ -324,11 +416,10 @@ export class ParameterManager {
     ]);
     if (
       property === "gx:legalRegistrationNumber" ||
-      property === "gx:registrationNumber"
+      property === "gx:registrationNumber" ||
+      property === "gx:providedBy"
     ) {
-      return {
-        id: answer[property],
-      };
+      return { id: answer[property] };
     }
     if (
       [
@@ -338,9 +429,7 @@ export class ParameterManager {
         "legalAddress",
       ].includes(property)
     ) {
-      return {
-        "gx:countrySubdivisionCode": answer[property],
-      };
+      return { "gx:countrySubdivisionCode": answer[property] };
     }
 
     return answer[property];
@@ -373,7 +462,7 @@ export class ParameterManager {
           // Regular expression for validating a DID without allowing fragments (#...)
           const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+$/;
 
-          if (validator.isURL(input) || didRegex.test(input)) {
+          if (validator.isURL(input, { require_protocol: true }) || didRegex.test(input)) {
             return true;
           }
           return "⚠️ Invalid issuer. Use a valid DID (e.g., did:web:example.com).";
@@ -390,7 +479,7 @@ export class ParameterManager {
         name: "url",
         message: "🔍 Enter the URL of the legal participant:",
         validate: (input) => {
-          if (validator.isURL(input)) {
+          if (validator.isURL(input, { require_protocol: true })) {
             return true;
           }
           return "⚠️ Invalid URL. Please enter a valid URL.";
@@ -452,7 +541,7 @@ export class ParameterManager {
         validate: (input) => {
           // Ensure it's either a valid URL or DID
           if (
-            validator.isURL(input) ||
+            validator.isURL(input, { require_protocol: true }) ||
             /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+(#.+)?$/.test(input)
           ) {
             return true;
