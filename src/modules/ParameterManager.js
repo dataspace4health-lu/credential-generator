@@ -90,8 +90,11 @@ export class ParameterManager {
         parameters.type,
         validTypes
       );
-      if (parameters.type === "LegalParticipant" ) {
-        parameters.vcUrl = await this.askForUrl();
+      if (
+        parameters.type === "LegalParticipant" ||
+        parameters.type === "ServiceOffering"
+      ) {
+        parameters.vcUrl = await this.askForUrl(parameters.type);
       }
       if (
         parameters.type === "LocalRegistrationNumber" ||
@@ -108,9 +111,7 @@ export class ParameterManager {
 
     // If signing, ask whether to use a private key
     if (parameters.shouldSign) {
-      var issuer = await this.askForIssuer(
-        "Enter the issuer DID:"
-      );
+      var issuer = await this.askForIssuer("Enter the issuer DID:");
       parameters.issuer = issuer;
       const useOwnKey = await this.askForConfirmation(
         "🔑 Do you want to use your own signing key?",
@@ -400,7 +401,7 @@ export class ParameterManager {
           ],
         },
       ]);
-      return  answer["gx:dataProtectionRegime"]
+      return answer["gx:dataProtectionRegime"];
     }
 
     // Default case: Prompt for single property
@@ -462,7 +463,10 @@ export class ParameterManager {
           // Regular expression for validating a DID without allowing fragments (#...)
           const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+$/;
 
-          if (validator.isURL(input, { require_protocol: true }) || didRegex.test(input)) {
+          if (
+            validator.isURL(input, { require_protocol: true }) ||
+            didRegex.test(input)
+          ) {
             return true;
           }
           return "⚠️ Invalid issuer. Use a valid DID (e.g., did:web:example.com).";
@@ -472,12 +476,16 @@ export class ParameterManager {
     return answer.issuer;
   }
 
-  async askForUrl() {
+  async askForUrl(type) {
+    const message =
+      type === "ServiceOffering"
+        ? "🔍 Enter the URL of the service offering:"
+        : "🔍 Enter the URL of the legal participant:";
     const answer = await inquirer.prompt([
       {
         type: "input",
         name: "url",
-        message: "🔍 Enter the URL of the legal participant:",
+        message: message,
         validate: (input) => {
           if (validator.isURL(input, { require_protocol: true })) {
             return true;

@@ -199,7 +199,7 @@ export class SelfDescriptionModule {
     
     let id, credentialSubjectId;
     
-    if (type === "LegalParticipant") {
+    if (type === "LegalParticipant" || type === "ServiceOffering") {
         if (output) {
           if (output.endsWith(".json")) {
             const fileName = path.basename(output);
