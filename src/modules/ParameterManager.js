@@ -167,7 +167,7 @@ export class ParameterManager {
     ]);
     return answer.type;
   }
-
+  
   async collectAllProperties(typeProperties) {
     console.log("📋 Collecting all properties for the shape...");
     const collected = {};
@@ -253,7 +253,7 @@ export class ParameterManager {
         "gx:registrationNumber",
         "gx:gaiaxTermsAndConditions",
       ];
-      const urlProperties = ["gx:url", "gx:providedBy"];
+      const urlProperties = ["gx:providedBy"];
       const addressProperties = [
         "gx:headquarterAddress",
         "gx:legalAddress",
@@ -278,14 +278,6 @@ export class ParameterManager {
       if (addressProperties.includes(property)) {
         if (!countryRegions.includes(input)) {
           return `⚠️ Address must be one of the valid country regions (e.g., LU-CA).`;
-        }
-        return true;
-      }
-      if (property === "gx:hash") {
-        const expectedHash =
-          "4bd7554097444c960292b4726c2efa1373485e8a5565d94d41195214c5e0ceb3";
-        if (input !== expectedHash) {
-          return `⚠️ Value must be the exact SHA-256 hash: ${expectedHash}`;
         }
         return true;
       }
@@ -314,7 +306,7 @@ export class ParameterManager {
     };
 
     // Special case for gx:termsAndConditions
-    if (property === "gx:termsAndConditions") {
+    if (property === "gx:termsAndConditions" || property === "gx:URL") {
       const answer = await inquirer.prompt([
         {
           type: "input",
