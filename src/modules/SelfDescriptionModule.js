@@ -265,7 +265,7 @@ export class SelfDescriptionModule {
       const parsedContent = JSON.parse(fileContent);
 
         // Check if the credential contains "gx:LegalParticipant" in the "type" array
-        if (parsedContent.type && parsedContent.type.includes("gx:LegalParticipant")) {
+        if (parsedContent.type && (parsedContent.type.includes("gx:LegalParticipant") || parsedContent.type.includes("gx:ServiceOffering"))) {
             legalParticipantVC = parsedContent;
         } else {
             verifiableCredentials.push(parsedContent);
