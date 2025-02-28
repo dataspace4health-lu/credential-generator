@@ -93,7 +93,8 @@ export class ParameterManager {
       );
       if (
         parameters.type === "LegalParticipant" ||
-        parameters.type === "ServiceOffering"
+        parameters.type === "ServiceOffering" ||
+        parameters.type === "ServiceOfferingLabelLevel1"
       ) {
         parameters.vcUrl = await this.askForUrl(parameters.type);
       }
@@ -495,7 +496,7 @@ export class ParameterManager {
 
   async askForUrl(type) {
     const message =
-      type === "ServiceOffering"
+      type === "ServiceOffering" || type === "ServiceOfferingLabelLevel1"
         ? "🔍 Enter the URL of the service offering:"
         : "🔍 Enter the URL of the legal participant:";
     const answer = await inquirer.prompt([
