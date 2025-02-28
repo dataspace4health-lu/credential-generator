@@ -308,7 +308,19 @@ export class SelfDescriptionModule {
           description: "Textual description of this organization",
           range: "string",
           required: false,
-        }
+        },
+      },
+      ServiceOffering: {
+        "gx:name": {
+          description: "Name of the service offering",
+          range: "string",
+          required: false,
+        },
+        "gx:description": {
+          description: "Description of the service offering",
+          range: "string",
+          required: false,
+        },
       },
     };
 
