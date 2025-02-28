@@ -52,7 +52,17 @@ export class SelfDescriptionModule {
     const implementedShapes = implementedShapesResponse.data.sort();
 
     for (const shapeName of implementedShapes) {
-      const shapeDetail = allShapes.find((s) => s["@id"].includes(shapeName));
+      let shapeDetail;
+
+      if (shapeName === "ServiceOfferingLabelLevel1") {
+        // Special case: find shape where sh:targetClass has gx:ServiceOfferingLabelLevel1
+        shapeDetail = allShapes.find(
+          (s) =>
+            s["sh:targetClass"]?.["@id"] === "gx:ServiceOfferingLabelLevel1"
+        );
+      } else {
+        shapeDetail = allShapes.find((s) => s["@id"].includes(shapeName));
+      }
       if (!shapeDetail) {
         // console.warn(
         //   `No shape detail found for implemented shape: ${shapeName}`

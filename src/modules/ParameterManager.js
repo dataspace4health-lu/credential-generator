@@ -257,7 +257,7 @@ export class ParameterManager {
         "gx:registrationNumber",
         "gx:gaiaxTermsAndConditions",
       ];
-      const urlProperties = ["gx:providedBy"];
+      const urlProperties = ["gx:providedBy", "gx:assignedTo"];
       const addressProperties = [
         "gx:headquarterAddress",
         "gx:legalAddress",
@@ -308,7 +308,11 @@ export class ParameterManager {
 
       return true;
     };
+    if (property === "gx:criteria") {
+      const criteria = [];
 
+      return criteria;
+    }
     // Special case for gx:termsAndConditions
     if (property === "gx:termsAndConditions" || property === "gx:URL") {
       const answer = await inquirer.prompt([
@@ -430,7 +434,8 @@ export class ParameterManager {
     if (
       property === "gx:legalRegistrationNumber" ||
       property === "gx:registrationNumber" ||
-      property === "gx:providedBy"
+      property === "gx:providedBy" ||
+      property === "gx:assignedTo"
     ) {
       return { id: answer[property] };
     }
