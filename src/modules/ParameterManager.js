@@ -1,8 +1,9 @@
 import inquirer from "inquirer";
 import validator from "validator";
-import path from "path";
 import fs from "fs";
 import countryRegions from "../../data/regionCodes.json";
+import { createHash } from "crypto";
+import fetch from "node-fetch";
 
 export class ParameterManager {
   constructor() {
@@ -174,6 +175,9 @@ export class ParameterManager {
 
     for (const [property, constraints] of Object.entries(typeProperties)) {
       // console.log(`🔍 Collecting property: ${property}`);
+      if (property === "gx:hash") {
+        continue;
+      }
       collected[property] = await this.askForProperty(property, constraints);
     }
 
@@ -314,14 +318,30 @@ export class ParameterManager {
           message: `Enter URL for gx:termsAndConditions:`,
           validate: (input) =>
             validator.isURL(input, { require_protocol: true }) ||
-            `⚠️ Value must be a valid URL (e.g., https://example.com/terms).`,
+            `⚠️ Value must be a valid URL (e.g., https://loripsum.net/api/plaintext).`,
         },
       ]);
 
-      return {
-        "gx:URL": answer["gx:URL"],
-        "gx:hash": "73fbf335-d1d5-43bb-9657-ec0e92a6e8fe", // Hardcoded for now
-      };
+      const url = answer["gx:URL"];
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok)
+          throw new Error(`Failed to fetch URL: ${response.statusText}`);
+
+        const termsAndConditionsText = await response.text(); // Get the text content
+        const hash = createHash("sha256")
+          .update(termsAndConditionsText)
+          .digest("hex"); // Compute SHA-256 hash
+
+        return {
+          "gx:URL": url,
+          "gx:hash": hash,
+        };
+      } catch (error) {
+        console.error(`❌ Error fetching URL: ${error.message}`);
+        return `⚠️ Unable to fetch or process the text from the URL.`;
+      }
     }
 
     // Special case for gx:dataAccountExport
