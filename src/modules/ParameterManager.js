@@ -181,32 +181,36 @@ export class ParameterManager {
       // Handle criteria collection separately
       if (property === "gx:criteria") {
         console.log("🔍 Collecting criteria...");
-        const criteriaProperties =
-          typesAndProperties["ServiceOfferingCriteria"].properties;
-        // console.log("Available properties for criteria:", criteriaProperties);
-
-        let criteriaResponses = {
-          type: "gx:ServiceOfferingCriteria",
-        };
-
-        for (const [criteriaProperty, criteriaConstraints] of Object.entries(
-          criteriaProperties
-        )) {
-          criteriaResponses[criteriaProperty] = {
-            type: "gx:CriteriaResponse",
-            ...(await this.askForProperty(
-              criteriaProperty,
-              criteriaConstraints
-            )),
-          };
+        if (!typesAndProperties["ServiceOfferingCriteria"]) {
+          console.error(
+            "❌ ServiceOfferingCriteria not found in typesAndProperties"
+          );
+          continue;
         }
-        collected[property] = criteriaResponses;
+        collected[property] = await this.collectCriteriaProperties(
+          typesAndProperties["ServiceOfferingCriteria"].properties
+        );
         continue;
       }
+
+      // For all other properties, use the modular askForProperty
       collected[property] = await this.askForProperty(property, constraints);
     }
-
     return collected;
+  }
+
+  async collectCriteriaProperties(criteriaProperties) {
+    // Separate out criteria collection into its own function
+    const criteriaResponses = { type: "gx:ServiceOfferingCriteria" };
+    for (const [criteriaProperty, criteriaConstraints] of Object.entries(
+      criteriaProperties
+    )) {
+      criteriaResponses[criteriaProperty] = {
+        type: "gx:CriteriaResponse",
+        ...(await this.askForProperty(criteriaProperty, criteriaConstraints)),
+      };
+    }
+    return criteriaResponses;
   }
 
   async collectRegistrationDetails() {
@@ -362,8 +366,8 @@ export class ParameterManager {
           name: "gx:website",
           message: "Provide a link to the website for evidence information:",
           when: (answers) => answers.addEvidence,
-          validate: (input) => 
-            validator.isURL(input, { require_protocol: true }) || 
+          validate: (input) =>
+            validator.isURL(input, { require_protocol: true }) ||
             "⚠️ Value must be a valid URL (e.g., https://example.com).",
         },
         {
@@ -372,8 +376,8 @@ export class ParameterManager {
           message:
             "Provide a link to the attestation PDF for evidence information:",
           when: (answers) => answers.addEvidence,
-          validate: (input) => 
-            validator.isURL(input, { require_protocol: true }) || 
+          validate: (input) =>
+            validator.isURL(input, { require_protocol: true }) ||
             "⚠️ Value must be a valid URL (e.g., https://example.com).",
         },
       ]);
