@@ -182,7 +182,7 @@ export class SelfDescriptionModule {
     // console.log("properties", properties);
     // Step 3: Collect all attribute values from the user
     const collectedProperties =
-      await this.parameterManager.collectAllProperties(properties);
+      await this.parameterManager.collectAllProperties(properties, typesAndProperties);
 
     // console.log("collectedProperties", collectedProperties);
     // Filter out properties with empty values

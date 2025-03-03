@@ -169,14 +169,38 @@ export class ParameterManager {
     ]);
     return answer.type;
   }
-  
-  async collectAllProperties(typeProperties) {
+  async collectAllProperties(properties, typesAndProperties) {
     console.log("📋 Collecting all properties for the shape...");
     const collected = {};
 
-    for (const [property, constraints] of Object.entries(typeProperties)) {
+    for (const [property, constraints] of Object.entries(properties)) {
       // console.log(`🔍 Collecting property: ${property}`);
       if (property === "gx:hash") {
+        continue;
+      }
+      // Handle criteria collection separately
+      if (property === "gx:criteria") {
+        console.log("🔍 Collecting criteria...");
+        const criteriaProperties =
+          typesAndProperties["ServiceOfferingCriteria"].properties;
+        // console.log("Available properties for criteria:", criteriaProperties);
+
+        let criteriaResponses = {
+          type: "gx:ServiceOfferingCriteria",
+        };
+
+        for (const [criteriaProperty, criteriaConstraints] of Object.entries(
+          criteriaProperties
+        )) {
+          criteriaResponses[criteriaProperty] = {
+            type: "gx:CriteriaResponse",
+            ...(await this.askForProperty(
+              criteriaProperty,
+              criteriaConstraints
+            )),
+          };
+        }
+        collected[property] = criteriaResponses;
         continue;
       }
       collected[property] = await this.askForProperty(property, constraints);
@@ -309,10 +333,63 @@ export class ParameterManager {
 
       return true;
     };
-    if (property === "gx:criteria") {
-      const criteria = [];
+    // Handle individual criteria properties (e.g., gx:P4.1.2, gx:P1.1.1, gx:P3.1.1)
+    if (property.startsWith("gx:P")) {
+      console.log(`🔍 Collecting response for: ${property}`);
 
-      return criteria;
+      const answer = await inquirer.prompt([
+        {
+          type: "list",
+          name: "response",
+          message: `Select response for ${property}: ${description}`,
+          choices: ["Confirm", "Deny", "Not applicable"],
+          validate: (input) => (input ? true : "⚠️ Response is required."),
+        },
+        {
+          type: "input",
+          name: "reason",
+          message: "Provide a reason (Optional reason when not applicable)",
+          when: (answers) => answers.response === "Not applicable",
+        },
+        {
+          type: "confirm",
+          name: "addEvidence",
+          message: "Do you want to provide evidence? (Default: No)",
+          default: false,
+        },
+        {
+          type: "input",
+          name: "gx:website",
+          message: "Provide a link to the website for evidence information:",
+          when: (answers) => answers.addEvidence,
+          validate: (input) => 
+            validator.isURL(input, { require_protocol: true }) || 
+            "⚠️ Value must be a valid URL (e.g., https://example.com).",
+        },
+        {
+          type: "input",
+          name: "gx:pdf",
+          message:
+            "Provide a link to the attestation PDF for evidence information:",
+          when: (answers) => answers.addEvidence,
+          validate: (input) => 
+            validator.isURL(input, { require_protocol: true }) || 
+            "⚠️ Value must be a valid URL (e.g., https://example.com).",
+        },
+      ]);
+      let evidence = {};
+      if (answer.addEvidence) {
+        evidence["gx:evidence"] = {
+          "gx:website": answer["gx:website"],
+          "gx:pdf": answer["gx:pdf"],
+        };
+      }
+
+      return {
+        "gx:response": answer.response,
+        ...(answer.reason && { "gx:reason": answer.reason }),
+        ...evidence,
+      };
     }
     // Special case for gx:termsAndConditions
     if (property === "gx:termsAndConditions" || property === "gx:URL") {
