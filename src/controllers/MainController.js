@@ -131,7 +131,8 @@ export class MainController {
 
     // Save the signed shape
     console.log("💾 Saving the final shape...");
-    await this.outputManager.saveToFile(output, `${type}.json`, finalShape);
+    const defaultFileName = vcUrl ? `${type}_URI.json` : `${type}.json`;
+    await this.outputManager.saveToFile(output, defaultFileName, finalShape);
 
     // console.log(`${type} shape handling completed successfully!`);
   }
