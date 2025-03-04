@@ -268,8 +268,9 @@ export class SelfDescriptionModule {
   }
 
   async generateVpShape(ontologyVersion, selectedFiles) {
-    const verifiableCredentials = [];
-    let legalParticipantVC = null;
+    const serviceOfferingVCs = [];
+    const legalParticipantVCs = [];
+    const otherVCs = [];
 
     for (const file of selectedFiles) {
       const filePath = path.resolve(file);
@@ -277,19 +278,30 @@ export class SelfDescriptionModule {
 
       const parsedContent = JSON.parse(fileContent);
 
-        // Check if the credential contains "gx:LegalParticipant" in the "type" array
-        if (parsedContent.type && (parsedContent.type.includes("gx:LegalParticipant") || parsedContent.type.includes("gx:ServiceOffering"))) {
-            legalParticipantVC = parsedContent;
-        } else {
-            verifiableCredentials.push(parsedContent);
-        }
+        // Check if the credential includes either gx:LegalParticipant or gx:ServiceOffering
+    if (parsedContent.type && (parsedContent.type.includes("gx:LegalParticipant") || parsedContent.type.includes("gx:ServiceOffering"))) {
+      // If gx:ServiceOffering is present (even if gx:LegalParticipant is also present), add it to serviceOfferingVCs
+      if (parsedContent.type.includes("gx:ServiceOffering")) {
+        serviceOfferingVCs.push(parsedContent);
+      } 
+      // Otherwise, if only gx:LegalParticipant is present, add it to legalParticipantVCs
+      else if (parsedContent.type.includes("gx:LegalParticipant")) {
+        legalParticipantVCs.push(parsedContent);
+      }
+    } else {
+      otherVCs.push(parsedContent);
     }
+  }
 
-    // If a legal participant VC was found, make sure it's the first in the array
-    if (legalParticipantVC) {
-      verifiableCredentials.unshift(legalParticipantVC);
-    }
-    // console.log("verifiableCredentials", verifiableCredentials);
+  // Ordering:
+  // - If gx:ServiceOffering exists, these VCs will be first.
+  // - If only gx:LegalParticipant exists, these will be first.
+  // - Then add all remaining credentials.
+  const orderedCredentials = [
+    ...serviceOfferingVCs,
+    ...legalParticipantVCs,
+    ...otherVCs,
+  ];
 
     let vpShapeObject;
 
@@ -297,11 +309,11 @@ export class SelfDescriptionModule {
       vpShapeObject = {
         id:  uuid4(),
         type: ["VerifiablePresentation"],
-        verifiableCredential: verifiableCredentials,
+        verifiableCredential: orderedCredentials,
         "@context": ["https://www.w3.org/2018/credentials/v1"],
       };
     } else if (ontologyVersion === "24.06 (Loire)") {
-      const envelopedCredentials = verifiableCredentials.map((vc) => ({
+      const envelopedCredentials = orderedCredentials.map((vc) => ({
         "@context": ["https://www.w3.org/ns/credentials/v2"],
         type: ["EnvelopedVerifiableCredential"],
         id: "data:application/vc+jwt;" + vc,
