@@ -397,6 +397,7 @@ export class ParameterManager {
       }
 
       return {
+        "gx:description": description,
         "gx:response": answer.response,
         ...(answer.reason && { "gx:reason": answer.reason }),
         ...evidence,
