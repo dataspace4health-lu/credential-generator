@@ -91,8 +91,15 @@ export class ParameterManager {
         parameters.type,
         validTypes
       );
+      if (parameters.type === "LegalParticipant") {
+        const includeInServiceOffering = await this.askForConfirmation(
+          "Do you want to include this legal participant in the service offering?"
+        );
+        if (!includeInServiceOffering) {
+          parameters.vcUrl = await this.askForUrl(parameters.type);
+        }
+      } 
       if (
-        parameters.type === "LegalParticipant" ||
         parameters.type === "ServiceOffering" ||
         parameters.type === "ServiceOfferingLabelLevel1"
       ) {

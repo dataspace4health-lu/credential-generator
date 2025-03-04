@@ -206,26 +206,39 @@ export class SelfDescriptionModule {
 
   createVcShapeObject(executableParams, properties) {
     const { type, ontologyVersion, vcUrl, output, issuer } = executableParams;
-    
+
     let id, credentialSubjectId;
-    
-    if (type === "LegalParticipant" || type === "ServiceOffering" || type === "ServiceOfferingLabelLevel1") {
+
+    // For LegalParticipant, ServiceOffering, or ServiceOfferingLabelLevel1
+    if (
+      type === "LegalParticipant" ||
+      type === "ServiceOffering" ||
+      type === "ServiceOfferingLabelLevel1"
+    ) {
+      // If vcUrl is provided, derive id using existing logic
+      if (vcUrl) {
         if (output) {
           if (output.endsWith(".json")) {
             const fileName = path.basename(output);
             id = `${vcUrl}/${fileName}`;
           } else {
-            id = `${vcUrl}/${type}` + ".json";
+            id = `${vcUrl}/${type}.json`;
           }
         } else {
-            id = `${vcUrl}/${type}` + ".json";
+          id = `${vcUrl}/${type}.json`;
         }
         credentialSubjectId = id;
-    } else {
+      } else {
+        // vcUrl not provided, use uuid4 for id and credentialSubjectId
         id = uuid4();
         credentialSubjectId = id;
+      }
+    } else {
+      // For all other types, use uuid4
+      id = uuid4();
+      credentialSubjectId = id;
     }
-    
+
     let shapeObject = {
       id,
       type: ["VerifiableCredential", `gx:${type}`],
