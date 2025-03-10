@@ -202,6 +202,13 @@ export class ParameterManager {
       // For all other properties, use the modular askForProperty
       collected[property] = await this.askForProperty(property, constraints);
     }
+    // Explicitly drain any buffered input without pausing stdin permanently
+    process.stdin.setEncoding("utf8");
+    process.stdin.resume();
+
+    while (process.stdin.read() !== null) {
+      // Consume buffered input until empty
+    }
     return collected;
   }
 
