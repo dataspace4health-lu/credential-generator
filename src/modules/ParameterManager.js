@@ -100,8 +100,7 @@ export class ParameterManager {
         }
       } 
       if (
-        parameters.type === "ServiceOffering" ||
-        parameters.type === "ServiceOfferingLabelLevel1"
+        parameters.type === "ServiceOffering"
       ) {
         parameters.vcUrl = await this.askForUrl(parameters.type);
       }
@@ -405,37 +404,41 @@ export class ParameterManager {
     }
     // Special case for gx:termsAndConditions
     if (property === "gx:termsAndConditions" || property === "gx:URL") {
-      const answer = await inquirer.prompt([
-        {
-          type: "input",
-          name: "gx:URL",
-          message: `Enter URL for gx:termsAndConditions:`,
-          validate: (input) =>
-            validator.isURL(input, { require_protocol: true }) ||
-            `⚠️ Value must be a valid URL (e.g., https://loripsum.net/api/plaintext).`,
-        },
-      ]);
-
-      const url = answer["gx:URL"];
-
-      try {
-        const response = await fetch(url);
-        if (!response.ok)
-          throw new Error(`Failed to fetch URL: ${response.statusText}`);
-
-        const termsAndConditionsText = await response.text(); // Get the text content
-        const hash = createHash("sha256")
-          .update(termsAndConditionsText)
-          .digest("hex"); // Compute SHA-256 hash
-
-        return {
-          "gx:URL": url,
-          "gx:hash": hash,
-        };
-      } catch (error) {
-        console.error(`❌ Error fetching URL: ${error.message}`);
-        return `⚠️ Unable to fetch or process the text from the URL.`;
+      let url;
+      let termsAndConditionsText;
+      let hash;
+    
+      while (true) {
+        const answer = await inquirer.prompt([
+          {
+            type: "input",
+            name: "gx:URL",
+            message: `Enter URL for gx:termsAndConditions:`,
+            validate: (input) =>
+              validator.isURL(input, { require_protocol: true }) ||
+              `⚠️ Value must be a valid URL (e.g., https://baconipsum.com/api/?type=all-meat&paras=2&format=text).`,
+          },
+        ]);
+    
+        url = answer["gx:URL"];
+    
+        try {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`Failed to fetch URL: ${response.statusText}`);
+    
+          termsAndConditionsText = await response.text(); // Get the text content
+          hash = createHash("sha256").update(termsAndConditionsText).digest("hex"); // Compute SHA-256 hash
+          break; // Exit the loop if fetch is successful
+        } catch (error) {
+          console.error(`❌ Error fetching URL: ${error.message}`);
+          console.log(`⚠️ Please enter a reachable URL.`);
+        }
       }
+    
+      return {
+        "gx:URL": url,
+        "gx:hash": hash,
+      };
     }
 
     // Special case for gx:dataAccountExport
