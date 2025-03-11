@@ -117,6 +117,8 @@ export class SelfDescriptionModule {
     const PROPERTY_DESCRIPTION_OVERRIDES = {
       "gx:assignedTo":
         "The UUID of the service offering self-description to which the label level is assigned.",
+        "gx:providedBy":
+        "The UUID of the legal participant self-description that provides the service offering.",
     };
 
     properties.forEach((property) => {

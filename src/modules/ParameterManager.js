@@ -298,25 +298,19 @@ export class ParameterManager {
         "gx:legalRegistrationNumber",
         "gx:registrationNumber",
         "gx:gaiaxTermsAndConditions",
-        "gx:assignedTo"
+        "gx:assignedTo",
+        "gx:providedBy"
       ];
-      const urlProperties = ["gx:providedBy"];
       const addressProperties = [
         "gx:headquarterAddress",
         "gx:legalAddress",
         "gx:headquartersAddress",
       ];
 
-      // Special case for UUID and URL validations
-      if ([...urlProperties, ...uuidProperties].includes(property)) {
-        if (urlProperties.includes(property)) {
-          if (!validator.isURL(input, { require_protocol: true })) {
-            return `⚠️ Value must be a valid URL (e.g., https://example.com/credential).`;
-          }
-        } else {
-          if (!validator.isUUID(input)) {
-            return `⚠️ Value must be a valid UUID.`;
-          }
+      // Special case for UUID validations
+      if (uuidProperties.includes(property)) {
+        if (!validator.isUUID(input)) {
+          return `⚠️ Value must be a valid UUID.`;
         }
         return true;
       }
