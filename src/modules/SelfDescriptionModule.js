@@ -46,10 +46,17 @@ export class SelfDescriptionModule {
 
   async handleTagusVersion(data, typesAndProperties) {
     const allShapes = data["gx-trustframework"]?.["@graph"] || [];
+    // Exclude these shapes from further processing
+    const EXCLUDED_SHAPES_TAGUS = ["ServiceOfferingCriteria"];
     const implementedShapesResponse = await axios.get(
       this.tagusImplementedShapesUrl
     );
-    const implementedShapes = implementedShapesResponse.data.sort();
+    let implementedShapes = implementedShapesResponse.data.sort();
+
+    // 🔍 Filter out excluded shapes explicitly
+    implementedShapes = implementedShapes.filter(
+      (shapeName) => !EXCLUDED_SHAPES_TAGUS.includes(shapeName)
+    );
 
     for (const shapeName of implementedShapes) {
       let shapeDetail;
