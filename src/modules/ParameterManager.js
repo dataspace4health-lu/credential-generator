@@ -289,6 +289,12 @@ export class ParameterManager {
 
     // Build the validation function based on constraints
     const validateInput = (input) => {
+      // Special handling for 'gx:policy' property
+      if (property === "gx:policy") {
+        // Always valid, even if empty
+        return true;
+      }
+
       if (required && !input) {
         return `⚠️ This property is required.`;
       }
@@ -299,7 +305,7 @@ export class ParameterManager {
         "gx:registrationNumber",
         "gx:gaiaxTermsAndConditions",
         "gx:assignedTo",
-        "gx:providedBy"
+        "gx:providedBy",
       ];
       const addressProperties = [
         "gx:headquarterAddress",
@@ -526,6 +532,10 @@ export class ParameterManager {
         validate: validateInput,
       },
     ]);
+    // Explicitly handle empty input for gx:policy
+    if (property === "gx:policy" && !answer[property]) {
+      return "";
+    }
     if (
       property === "gx:legalRegistrationNumber" ||
       property === "gx:registrationNumber" ||

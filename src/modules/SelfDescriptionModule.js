@@ -214,9 +214,13 @@ export class SelfDescriptionModule {
     // console.log("collectedProperties", collectedProperties);
     // Filter out properties with empty values
     const filteredCollectedProperties = Object.fromEntries(
-      Object.entries(collectedProperties).filter(([key, value]) =>
-        typeof value === "string" ? value.trim() !== "" : true
-      )
+      Object.entries(collectedProperties).filter(([key, value]) => {
+        if (key === "gx:policy") {
+          // Explicitly allow empty strings for gx:policy
+          return true;
+        }
+        return typeof value === "string" ? value.trim() !== "" : true;
+      })
     );
     const finalProperties = {
       ...preAssignedProperties,
