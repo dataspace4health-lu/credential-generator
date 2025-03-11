@@ -107,6 +107,10 @@ export class SelfDescriptionModule {
   formatTagusProperties(properties) {
     const formattedProperties = {};
     const preAssignedProperties = {}; // Store properties with sh:hasValue
+    const PROPERTY_DESCRIPTION_OVERRIDES = {
+      "gx:assignedTo":
+        "The UUID of the service offering self-description to which the label level is assigned.",
+    };
 
     properties.forEach((property) => {
       const propertyName = property["sh:path"]["@id"];
@@ -117,8 +121,14 @@ export class SelfDescriptionModule {
         preAssignedProperties[propertyName] = hasValue;
       } else {
         // Process properties without sh:hasValue
+        let description = property["sh:description"] || propertyName;
+
+        // Apply description override if available
+        if (PROPERTY_DESCRIPTION_OVERRIDES[propertyName]) {
+          description = PROPERTY_DESCRIPTION_OVERRIDES[propertyName];
+        }
         formattedProperties[propertyName] = {
-          description: property["sh:description"] || propertyName,
+          description: description,
           range: property["sh:datatype"]
             ? property["sh:datatype"]["@id"].replace("xsd:", "").toLowerCase()
             : "string",
@@ -178,11 +188,19 @@ export class SelfDescriptionModule {
       );
     }
     // Step 2: Add predefined missing properties for specific types
-    this.addMissingProperties(type, properties, preAssignedProperties, typesAndProperties);
+    this.addMissingProperties(
+      type,
+      properties,
+      preAssignedProperties,
+      typesAndProperties
+    );
     // console.log("properties", properties);
     // Step 3: Collect all attribute values from the user
     const collectedProperties =
-      await this.parameterManager.collectAllProperties(properties, typesAndProperties);
+      await this.parameterManager.collectAllProperties(
+        properties,
+        typesAndProperties
+      );
 
     // console.log("collectedProperties", collectedProperties);
     // Filter out properties with empty values
@@ -199,7 +217,10 @@ export class SelfDescriptionModule {
     console.log(`📋 Collected properties for type '${type}'`);
 
     // Step 4: Fit the collected data into the shape object
-    const shapeObject = this.createVcShapeObject(executableParams, finalProperties);
+    const shapeObject = this.createVcShapeObject(
+      executableParams,
+      finalProperties
+    );
 
     return shapeObject;
   }
@@ -278,36 +299,40 @@ export class SelfDescriptionModule {
 
       const parsedContent = JSON.parse(fileContent);
 
-        // Check if the credential includes either gx:LegalParticipant or gx:ServiceOffering
-    if (parsedContent.type && (parsedContent.type.includes("gx:LegalParticipant") || parsedContent.type.includes("gx:ServiceOffering"))) {
-      // If gx:ServiceOffering is present (even if gx:LegalParticipant is also present), add it to serviceOfferingVCs
-      if (parsedContent.type.includes("gx:ServiceOffering")) {
-        serviceOfferingVCs.push(parsedContent);
-      } 
-      // Otherwise, if only gx:LegalParticipant is present, add it to legalParticipantVCs
-      else if (parsedContent.type.includes("gx:LegalParticipant")) {
-        legalParticipantVCs.push(parsedContent);
+      // Check if the credential includes either gx:LegalParticipant or gx:ServiceOffering
+      if (
+        parsedContent.type &&
+        (parsedContent.type.includes("gx:LegalParticipant") ||
+          parsedContent.type.includes("gx:ServiceOffering"))
+      ) {
+        // If gx:ServiceOffering is present (even if gx:LegalParticipant is also present), add it to serviceOfferingVCs
+        if (parsedContent.type.includes("gx:ServiceOffering")) {
+          serviceOfferingVCs.push(parsedContent);
+        }
+        // Otherwise, if only gx:LegalParticipant is present, add it to legalParticipantVCs
+        else if (parsedContent.type.includes("gx:LegalParticipant")) {
+          legalParticipantVCs.push(parsedContent);
+        }
+      } else {
+        otherVCs.push(parsedContent);
       }
-    } else {
-      otherVCs.push(parsedContent);
     }
-  }
 
-  // Ordering:
-  // - If gx:ServiceOffering exists, these VCs will be first.
-  // - If only gx:LegalParticipant exists, these will be first.
-  // - Then add all remaining credentials.
-  const orderedCredentials = [
-    ...serviceOfferingVCs,
-    ...legalParticipantVCs,
-    ...otherVCs,
-  ];
+    // Ordering:
+    // - If gx:ServiceOffering exists, these VCs will be first.
+    // - If only gx:LegalParticipant exists, these will be first.
+    // - Then add all remaining credentials.
+    const orderedCredentials = [
+      ...serviceOfferingVCs,
+      ...legalParticipantVCs,
+      ...otherVCs,
+    ];
 
     let vpShapeObject;
 
     if (ontologyVersion === "22.10 (Tagus)") {
       vpShapeObject = {
-        id:  uuid4(),
+        id: uuid4(),
         type: ["VerifiablePresentation"],
         verifiableCredential: orderedCredentials,
         "@context": ["https://www.w3.org/2018/credentials/v1"],
@@ -331,7 +356,12 @@ export class SelfDescriptionModule {
 
     return vpShapeObject;
   }
-  addMissingProperties(type, properties, preAssignedProperties, typesAndProperties) {
+  addMissingProperties(
+    type,
+    properties,
+    preAssignedProperties,
+    typesAndProperties
+  ) {
     const missingPropertiesMap = {
       LegalParticipant: {
         "gx:legalName": {
@@ -369,13 +399,17 @@ export class SelfDescriptionModule {
     }
     // Compute the SHA-256 hash and assign it to the preAssignedProperties
     if (type === "LegalParticipant") {
-      const termsAndConditionsText = typesAndProperties["GaiaXTermsAndConditions"].preAssignedProperties["gx:termsAndConditions"];
+      const termsAndConditionsText =
+        typesAndProperties["GaiaXTermsAndConditions"].preAssignedProperties[
+          "gx:termsAndConditions"
+        ];
       // console.log("Terms And Conditions Text", termsAndConditionsText);
       const hash = createHash("sha256")
-      .update(termsAndConditionsText)
-      .digest("hex");
+        .update(termsAndConditionsText)
+        .digest("hex");
       // console.log("hash", hash);
-      preAssignedProperties["gx-terms-and-conditions:gaiaxTermsAndConditions"] = hash;
+      preAssignedProperties["gx-terms-and-conditions:gaiaxTermsAndConditions"] =
+        hash;
     }
   }
 }

@@ -298,8 +298,9 @@ export class ParameterManager {
         "gx:legalRegistrationNumber",
         "gx:registrationNumber",
         "gx:gaiaxTermsAndConditions",
+        "gx:assignedTo"
       ];
-      const urlProperties = ["gx:providedBy", "gx:assignedTo"];
+      const urlProperties = ["gx:providedBy"];
       const addressProperties = [
         "gx:headquarterAddress",
         "gx:legalAddress",
