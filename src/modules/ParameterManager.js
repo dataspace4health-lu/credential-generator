@@ -306,6 +306,10 @@ export class ParameterManager {
         "gx:gaiaxTermsAndConditions",
         "gx:assignedTo",
         "gx:providedBy",
+        "gx:maintainedBy",
+        "gx:hostedOn",
+        "gx:instanceOf",
+        "gx:tenantOwnedBy"
       ];
       const addressProperties = [
         "gx:headquarterAddress",
@@ -415,7 +419,7 @@ export class ParameterManager {
       let url;
       let termsAndConditionsText;
       let hash;
-    
+
       while (true) {
         const answer = await inquirer.prompt([
           {
@@ -427,28 +431,66 @@ export class ParameterManager {
               `⚠️ Value must be a valid URL (e.g., https://baconipsum.com/api/?type=all-meat&paras=2&format=text).`,
           },
         ]);
-    
+
         url = answer["gx:URL"];
-    
+
         try {
           const response = await fetch(url);
-          if (!response.ok) throw new Error(`Failed to fetch URL: ${response.statusText}`);
-    
+          if (!response.ok)
+            throw new Error(`Failed to fetch URL: ${response.statusText}`);
+
           termsAndConditionsText = await response.text(); // Get the text content
-          hash = createHash("sha256").update(termsAndConditionsText).digest("hex"); // Compute SHA-256 hash
+          hash = createHash("sha256")
+            .update(termsAndConditionsText)
+            .digest("hex"); // Compute SHA-256 hash
           break; // Exit the loop if fetch is successful
         } catch (error) {
           console.error(`❌ Error fetching URL: ${error.message}`);
           console.log(`⚠️ Please enter a reachable URL.`);
         }
       }
-    
+
       return {
         "gx:URL": url,
         "gx:hash": hash,
       };
     }
+    // Add this case explicitly within your askForProperty method
+    if (property === "gx:serviceAccessPoint") {
+      const serviceAccessPoints = [];
 
+      let addMore = true;
+      while (addMore) {
+        const { accessPoint } = await inquirer.prompt([
+          {
+            type: "input",
+            name: "accessPoint",
+            message: "Enter the id (UUID) of the service access point:",
+            validate: (input) => {
+              return (
+                validator.isUUID(input) ||
+                "⚠️ Invalid UUID format. Please enter a valid UUID."
+              );
+            },
+          },
+        ]);
+
+        serviceAccessPoints.push({ "@id": accessPoint });
+
+        const { continueAdding } = await inquirer.prompt([
+          {
+            type: "confirm",
+            name: "continueAdding",
+            message: "Would you like to add another service access point?",
+            default: false,
+          },
+        ]);
+
+        addMore = continueAdding;
+      }
+
+      return serviceAccessPoints;
+    }
     // Special case for gx:dataAccountExport
     if (property === "gx:dataAccountExport") {
       const answer = await inquirer.prompt([
@@ -540,7 +582,11 @@ export class ParameterManager {
       property === "gx:legalRegistrationNumber" ||
       property === "gx:registrationNumber" ||
       property === "gx:providedBy" ||
-      property === "gx:assignedTo"
+      property === "gx:assignedTo" ||
+      property === "gx:maintainedBy" || 
+      property === "gx:hostedOn" ||
+      property === "gx:instanceOf" ||
+      property === "gx:tenantOwnedBy"
     ) {
       return { id: answer[property] };
     }
