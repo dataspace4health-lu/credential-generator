@@ -46,17 +46,10 @@ export class SelfDescriptionModule {
 
   async handleTagusVersion(data, typesAndProperties) {
     const allShapes = data["gx-trustframework"]?.["@graph"] || [];
-    // Exclude these shapes from further processing
-    const EXCLUDED_SHAPES_TAGUS = ["ServiceOfferingCriteria"];
     const implementedShapesResponse = await axios.get(
       this.tagusImplementedShapesUrl
     );
     let implementedShapes = implementedShapesResponse.data.sort();
-
-    // 🔍 Filter out excluded shapes explicitly
-    implementedShapes = implementedShapes.filter(
-      (shapeName) => !EXCLUDED_SHAPES_TAGUS.includes(shapeName)
-    );
 
     for (const shapeName of implementedShapes) {
       let shapeDetail;
@@ -119,6 +112,13 @@ export class SelfDescriptionModule {
         "The UUID of the service offering self-description to which the label level is assigned.",
       "gx:providedBy":
         "The UUID of the legal participant self-description that provides the service offering.",
+      "gx:maintainedBy":
+        "The UUID of participant maintaining the resource in operational condition.",
+      "gx:hostedOn": 
+        "The UUID of the resource where the process is located (physical server, datacenter, availability zone).",
+      "gx:instanceOf": 
+      "The UUID A virtual resource (normally a software resource) this process is an instance of.",
+      "gx:tenantOwnedBy": "The UUID of participant with contractual relation with the resource"
     };
     const REQUIRED_PROPERTIES_OVERRIDE = [
       "gx:name",

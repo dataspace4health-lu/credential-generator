@@ -84,7 +84,9 @@ export class ParameterManager {
         await selfDescriptionModule.fetchOntologyTypesAndProperties(
           parameters.ontologyVersion
         );
-      const validTypes = Object.keys(typesAndProperties);
+      const validTypes = Object.keys(typesAndProperties).filter(
+        (type) => type !== "ServiceOfferingCriteria"
+      );
 
       // Step 4: Validate or ask for the type
       parameters.type = await this.validateOrAskType(
