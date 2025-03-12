@@ -117,9 +117,17 @@ export class SelfDescriptionModule {
     const PROPERTY_DESCRIPTION_OVERRIDES = {
       "gx:assignedTo":
         "The UUID of the service offering self-description to which the label level is assigned.",
-        "gx:providedBy":
+      "gx:providedBy":
         "The UUID of the legal participant self-description that provides the service offering.",
     };
+    const REQUIRED_PROPERTIES_OVERRIDE = [
+      "gx:name",
+      "gx:host",
+      "gx:protocol",
+      "gx:version",
+      "gx:port",
+      "gx:openAPI",
+    ];
 
     properties.forEach((property) => {
       const propertyName = property["sh:path"]["@id"];
@@ -141,7 +149,9 @@ export class SelfDescriptionModule {
           range: property["sh:datatype"]
             ? property["sh:datatype"]["@id"].replace("xsd:", "").toLowerCase()
             : "string",
-          required: property["sh:minCount"] === 1,
+          required:
+            REQUIRED_PROPERTIES_OVERRIDE.includes(propertyName) ||
+            property["sh:minCount"] === 1, // force required=true if in override,
         };
       }
     });

@@ -294,6 +294,12 @@ export class ParameterManager {
         // Always valid, even if empty
         return true;
       }
+      if (property === "gx:port") {
+      if (!validator.isInt(input)) {
+        return "⚠️ Port must be a valid number.";
+      }
+      return true;
+    }
 
       if (required && !input) {
         return `⚠️ This property is required.`;
@@ -572,6 +578,13 @@ export class ParameterManager {
           description || "No description"
         }):`,
         validate: validateInput,
+        filter: (input) => {
+        // Explicitly handle gx:port conversion
+        if (property === "gx:port") {
+          return String(input.trim());
+        }
+        return input;
+      },
       },
     ]);
     // Explicitly handle empty input for gx:policy
