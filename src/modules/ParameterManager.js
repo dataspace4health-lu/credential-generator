@@ -2,6 +2,7 @@ import inquirer from "inquirer";
 import validator from "validator";
 import fs from "fs";
 import countryRegions from "../../data/regionCodes.json";
+import licenseList from "../../data/licenseList.json";
 import { createHash } from "crypto";
 import fetch from "node-fetch";
 
@@ -297,11 +298,11 @@ export class ParameterManager {
         return true;
       }
       if (property === "gx:port") {
-      if (!validator.isInt(input)) {
-        return "⚠️ Port must be a valid number.";
+        if (!validator.isInt(input)) {
+          return "⚠️ Port must be a valid number.";
+        }
+        return true;
       }
-      return true;
-    }
 
       if (required && !input) {
         return `⚠️ This property is required.`;
@@ -317,7 +318,9 @@ export class ParameterManager {
         "gx:maintainedBy",
         "gx:hostedOn",
         "gx:instanceOf",
-        "gx:tenantOwnedBy"
+        "gx:tenantOwnedBy",
+        "gx:producedBy",
+        "gx:exposedThrough",
       ];
       const addressProperties = [
         "gx:headquarterAddress",
@@ -352,6 +355,10 @@ export class ParameterManager {
         case "boolean":
           if (!["true", "false"].includes(input.toLowerCase()))
             return `⚠️ Value must be either 'true' or 'false'.`;
+          break;
+        case "datetime":
+          if (!validator.isISO8601(input))
+            return `⚠️ Value must be a valid ISO 8601 date format.`;
           break;
         case "string":
           if (input && !isNaN(input))
@@ -570,6 +577,21 @@ export class ParameterManager {
       ]);
       return answer["gx:dataProtectionRegime"];
     }
+    if (property === "gx:license") {
+      if (!licenseList.length) {
+        throw new Error("❌ License list is empty or could not be loaded.");
+      }
+
+      const answer = await inquirer.prompt([
+        {
+          type: "list",
+          name: property,
+          message: `Select a license for ${property}:`,
+          choices: licenseList,
+        },
+      ]);
+      return answer[property];
+    }
 
     // Default case: Prompt for single property
     const answer = await inquirer.prompt([
@@ -581,27 +603,29 @@ export class ParameterManager {
         }):`,
         validate: validateInput,
         filter: (input) => {
-        // Explicitly handle gx:port conversion
-        if (property === "gx:port") {
-          return String(input.trim());
-        }
-        return input;
-      },
+          // Explicitly handle gx:port conversion
+          if (property === "gx:port") {
+            return String(input.trim());
+          }
+          return input;
+        },
       },
     ]);
     // Explicitly handle empty input for gx:policy
     if (property === "gx:policy" && !answer[property]) {
-      return "";
+      return "default: allow";
     }
     if (
       property === "gx:legalRegistrationNumber" ||
       property === "gx:registrationNumber" ||
       property === "gx:providedBy" ||
       property === "gx:assignedTo" ||
-      property === "gx:maintainedBy" || 
+      property === "gx:maintainedBy" ||
       property === "gx:hostedOn" ||
       property === "gx:instanceOf" ||
-      property === "gx:tenantOwnedBy"
+      property === "gx:tenantOwnedBy" ||
+      property === "gx:producedBy" ||
+      property === "gx:exposedThrough"
     ) {
       return { id: answer[property] };
     }
