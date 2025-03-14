@@ -307,7 +307,13 @@ export class ParameterManager {
       if (required && !input) {
         return `⚠️ This property is required.`;
       }
+      const urlProperties = ["id", "gx:openAPI"];
 
+      if (urlProperties.includes(property) && input) {
+        if (!validator.isURL(input, { require_protocol: true })) {
+          return `⚠️ ${property} must be a valid URL.`;
+        }
+      }
       // Define property groups for special validations
       const uuidProperties = [
         "gx:legalRegistrationNumber",

@@ -410,6 +410,13 @@ export class SelfDescriptionModule {
           required: false,
         },
       },
+      ServiceAccessPoint: {
+        "id": {
+          description: "The URL of the service access point.",
+          range: "string",
+          required: true,
+        },
+      },
     };
 
     if (missingPropertiesMap[type]) {
