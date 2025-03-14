@@ -320,7 +320,6 @@ export class ParameterManager {
         "gx:registrationNumber",
         "gx:gaiaxTermsAndConditions",
         "gx:assignedTo",
-        "gx:providedBy",
         "gx:maintainedBy",
         "gx:hostedOn",
         "gx:instanceOf",
@@ -348,6 +347,12 @@ export class ParameterManager {
           return `⚠️ Address must be one of the valid country regions (e.g., LU-CA).`;
         }
         return true;
+      }
+
+      const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+$/;
+
+      if (property === "gx:providedBy") {
+        return didRegex.test(input) || `⚠️ Value must be a valid DID.`;
       }
 
       switch (range) {
