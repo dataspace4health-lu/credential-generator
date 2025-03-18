@@ -111,9 +111,9 @@ export class SelfDescriptionModule {
       "gx:assignedTo":
         "The UUID of the service offering self-description to which the label level is assigned.",
       "gx:providedBy":
-        "The UUID of the legal participant self-description that provides the service offering.",
+        "The DID of the legal participant self-description that provides the service offering.",
       "gx:maintainedBy":
-        "The UUID of participant maintaining the resource in operational condition.",
+        "The DID of participant maintaining the resource in operational condition.",
       "gx:hostedOn": 
         "The UUID of the resource where the process is located (physical server, datacenter, availability zone).",
       "gx:instanceOf": 
@@ -256,8 +256,7 @@ export class SelfDescriptionModule {
     // For LegalParticipant, ServiceOffering, or ServiceOfferingLabelLevel1
     if (
       type === "LegalParticipant" ||
-      type === "ServiceOffering" ||
-      type === "ServiceOfferingLabelLevel1"
+      type === "ServiceOffering"
     ) {
       // If vcUrl is provided, derive id using existing logic
       if (vcUrl) {

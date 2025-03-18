@@ -3,6 +3,7 @@ import { SelfDescriptionModule } from "../modules/SelfDescriptionModule.js";
 import { SignatureModule } from "../modules/SignatureModule.js";
 import { OutputManager } from "../modules/OutputManager.js";
 import { LegalRegistrationNumberModule } from "../modules/LegalRegistrationNumberModule.js";
+import { ServiceOfferingModule } from "../modules/ServiceOfferingModule.js";
 
 import { v4 as uuid4 } from "uuid";
 
@@ -15,6 +16,9 @@ export class MainController {
     this.outputManager = new OutputManager();
     this.signatureModule = new SignatureModule(this.outputManager);
     this.legalRegistrationNumberModule = new LegalRegistrationNumberModule();
+    this.serviceOfferingModule = new ServiceOfferingModule(
+      this.selfDescriptionModule
+    );
   }
 
   async run(argv) {
@@ -105,29 +109,41 @@ export class MainController {
       await this.outputManager.saveToFile(output, `${type}.json`, vcShape);
       console.log("📂 LRN shape saved successfully.");
       return; // Exit the function to avoid signing logic
-    }
+    } else if (type === "ServiceOffering") {
+      console.log("📋 Handling Service Offering workflow...");
 
-    // General case for other types
-    vcShape = await this.selfDescriptionModule.generateShape(executableParams);
-
-    console.log("✅ Shape generated successfully.\n");
-
-    let finalShape = vcShape;
-
-    // Handle signing logic
-    if (shouldSign) {
-      console.log("✍️  Signing the shape...");
-      finalShape = await this.signatureModule.signDocument(
-        ontologyVersion,
-        vcShape,
-        privateKeyPath,
-        verificationMethod
-
+      // Collect service offering details
+      const extractedProperties = await this.serviceOfferingModule.handleServiceOffering(
+        executableParams
       );
-      console.log("✅ Shape signed successfully.\n");
+      
+      vcShape = await this.serviceOfferingModule.createVcShapeObject(executableParams, extractedProperties);
+
+      // console.log(`✅ Collected service details: `, vcShape);
     } else {
-      console.log("⚠️  Skipping signing as per user choice.");
+      // General case for other types
+      vcShape = await this.selfDescriptionModule.generateShape(
+        executableParams
+      );
+
+      console.log("✅ Shape generated successfully.\n");
+
     }
+    
+      let finalShape = vcShape;
+      // Handle signing logic
+      if (shouldSign) {
+        console.log("✍️  Signing the shape...");
+        finalShape = await this.signatureModule.signDocument(
+          ontologyVersion,
+          vcShape,
+          privateKeyPath,
+          verificationMethod
+        );
+        console.log("✅ Shape signed successfully.\n");
+      } else {
+        console.log("⚠️  Skipping signing as per user choice.");
+      }
 
     // Save the signed shape
     console.log("💾 Saving the final shape...");

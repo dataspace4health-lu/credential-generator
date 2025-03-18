@@ -85,8 +85,17 @@ export class ParameterManager {
         await selfDescriptionModule.fetchOntologyTypesAndProperties(
           parameters.ontologyVersion
         );
-      const validTypes = Object.keys(typesAndProperties).filter(
-        (type) => type !== "ServiceOfferingCriteria"
+
+      // Step 4: Filter the valid types to only show the allowed ones
+      const allowedShapes = [
+        "LegalParticipant",
+        "legalRegistrationNumber",
+        "ServiceOffering",
+        "GaiaXTermsAndConditions",
+      ];
+      
+      const validTypes = Object.keys(typesAndProperties).filter((type) =>
+        allowedShapes.includes(type)
       );
 
       // Step 4: Validate or ask for the type
@@ -101,10 +110,8 @@ export class ParameterManager {
         if (!includeInServiceOffering) {
           parameters.vcUrl = await this.askForUrl(parameters.type);
         }
-      } 
-      if (
-        parameters.type === "ServiceOffering"
-      ) {
+      }
+      if (parameters.type === "ServiceOffering") {
         parameters.vcUrl = await this.askForUrl(parameters.type);
       }
       if (
@@ -320,11 +327,9 @@ export class ParameterManager {
         "gx:registrationNumber",
         "gx:gaiaxTermsAndConditions",
         "gx:assignedTo",
-        "gx:maintainedBy",
         "gx:hostedOn",
         "gx:instanceOf",
         "gx:tenantOwnedBy",
-        "gx:producedBy",
         "gx:exposedThrough",
       ];
       const addressProperties = [
@@ -351,7 +356,7 @@ export class ParameterManager {
 
       const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+$/;
 
-      if (property === "gx:providedBy") {
+      if (property === "gx:providedBy" || property === "gx:producedBy" || property === "gx:maintainedBy") {
         return didRegex.test(input) || `⚠️ Value must be a valid DID.`;
       }
 
