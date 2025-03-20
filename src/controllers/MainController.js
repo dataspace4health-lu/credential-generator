@@ -171,9 +171,10 @@ export class MainController {
     }
 
     // General case for other types
+    console.log("executableParams", executableParams);
     let vpShape
     vpShape = await this.selfDescriptionModule.generateVpShape(
-      ontologyVersion,
+      executableParams,
       selectedFiles
     );
 

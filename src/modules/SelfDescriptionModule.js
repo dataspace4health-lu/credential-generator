@@ -310,7 +310,9 @@ export class SelfDescriptionModule {
     return shapeObject;
   }
 
-  async generateVpShape(ontologyVersion, selectedFiles) {
+  async generateVpShape(executableParams, selectedFiles) {
+    const { ontologyVersion, issuer } = executableParams;
+    
     const serviceOfferingVCs = [];
     const legalParticipantVCs = [];
     const otherVCs = [];
@@ -356,6 +358,7 @@ export class SelfDescriptionModule {
       vpShapeObject = {
         id: uuid4(),
         type: ["VerifiablePresentation"],
+        holder: issuer,
         verifiableCredential: orderedCredentials,
         "@context": ["https://www.w3.org/2018/credentials/v1"],
       };
