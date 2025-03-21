@@ -114,11 +114,12 @@ export class SelfDescriptionModule {
         "The DID of the legal participant self-description that provides the service offering.",
       "gx:maintainedBy":
         "The DID of participant maintaining the resource in operational condition.",
-      "gx:hostedOn": 
+      "gx:hostedOn":
         "The UUID of the resource where the process is located (physical server, datacenter, availability zone).",
-      "gx:instanceOf": 
-      "The UUID A virtual resource (normally a software resource) this process is an instance of.",
-      "gx:tenantOwnedBy": "The UUID of participant with contractual relation with the resource"
+      "gx:instanceOf":
+        "The UUID A virtual resource (normally a software resource) this process is an instance of.",
+      "gx:tenantOwnedBy":
+        "The UUID of participant with contractual relation with the resource",
     };
     const REQUIRED_PROPERTIES_OVERRIDE = [
       "gx:name",
@@ -128,11 +129,24 @@ export class SelfDescriptionModule {
       "gx:port",
       "gx:openAPI",
     ];
+    // List of properties that should not be asked from the user
+    const autoAssignedProperties = [
+      "gx:assignedTo",
+      "gx:exposedThrough",
+      "gx:instanceOf",
+      "gx:hostedOn",
+      "gx:serviceAccessPoint",
+    ];
 
     properties.forEach((property) => {
       const propertyName = property["sh:path"]["@id"];
       const hasValue = property["sh:hasValue"];
 
+      // Skip user prompts for auto-assigned properties
+      if (autoAssignedProperties.includes(propertyName)) {
+        preAssignedProperties[propertyName] = "PREASSIGNED"; // Placeholder for later assignment
+        return;
+      }
       if (hasValue) {
         // Directly assign the hasValue
         preAssignedProperties[propertyName] = hasValue;
