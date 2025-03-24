@@ -49,10 +49,20 @@ export class SelfDescriptionModule {
     const implementedShapesResponse = await axios.get(
       this.tagusImplementedShapesUrl
     );
-    const implementedShapes = implementedShapesResponse.data.sort();
+    let implementedShapes = implementedShapesResponse.data.sort();
 
     for (const shapeName of implementedShapes) {
-      const shapeDetail = allShapes.find((s) => s["@id"].includes(shapeName));
+      let shapeDetail;
+
+      if (shapeName === "ServiceOfferingLabelLevel1") {
+        // Special case: find shape where sh:targetClass has gx:ServiceOfferingLabelLevel1
+        shapeDetail = allShapes.find(
+          (s) =>
+            s["sh:targetClass"]?.["@id"] === "gx:ServiceOfferingLabelLevel1"
+        );
+      } else {
+        shapeDetail = allShapes.find((s) => s["@id"].includes(shapeName));
+      }
       if (!shapeDetail) {
         // console.warn(
         //   `No shape detail found for implemented shape: ${shapeName}`
@@ -97,22 +107,65 @@ export class SelfDescriptionModule {
   formatTagusProperties(properties) {
     const formattedProperties = {};
     const preAssignedProperties = {}; // Store properties with sh:hasValue
+    const PROPERTY_DESCRIPTION_OVERRIDES = {
+      "gx:assignedTo":
+        "The UUID of the service offering self-description to which the label level is assigned.",
+      "gx:providedBy":
+        "The DID of the legal participant self-description that provides the service offering.",
+      "gx:maintainedBy":
+        "The DID of participant maintaining the resource in operational condition.",
+      "gx:hostedOn":
+        "The UUID of the resource where the process is located (physical server, datacenter, availability zone).",
+      "gx:instanceOf":
+        "The UUID A virtual resource (normally a software resource) this process is an instance of.",
+      "gx:tenantOwnedBy":
+        "The UUID of participant with contractual relation with the resource",
+    };
+    const REQUIRED_PROPERTIES_OVERRIDE = [
+      "gx:name",
+      "gx:host",
+      "gx:protocol",
+      "gx:version",
+      "gx:port",
+      "gx:openAPI",
+    ];
+    // List of properties that should not be asked from the user
+    const autoAssignedProperties = [
+      "gx:assignedTo",
+      "gx:exposedThrough",
+      "gx:instanceOf",
+      "gx:hostedOn",
+      "gx:serviceAccessPoint",
+    ];
 
     properties.forEach((property) => {
       const propertyName = property["sh:path"]["@id"];
       const hasValue = property["sh:hasValue"];
 
+      // Skip user prompts for auto-assigned properties
+      if (autoAssignedProperties.includes(propertyName)) {
+        preAssignedProperties[propertyName] = "PREASSIGNED"; // Placeholder for later assignment
+        return;
+      }
       if (hasValue) {
         // Directly assign the hasValue
         preAssignedProperties[propertyName] = hasValue;
       } else {
         // Process properties without sh:hasValue
+        let description = property["sh:description"] || propertyName;
+
+        // Apply description override if available
+        if (PROPERTY_DESCRIPTION_OVERRIDES[propertyName]) {
+          description = PROPERTY_DESCRIPTION_OVERRIDES[propertyName];
+        }
         formattedProperties[propertyName] = {
-          description: property["sh:description"] || propertyName,
+          description: description,
           range: property["sh:datatype"]
             ? property["sh:datatype"]["@id"].replace("xsd:", "").toLowerCase()
             : "string",
-          required: property["sh:minCount"] === 1,
+          required:
+            REQUIRED_PROPERTIES_OVERRIDE.includes(propertyName) ||
+            property["sh:minCount"] === 1, // force required=true if in override,
         };
       }
     });
@@ -168,18 +221,30 @@ export class SelfDescriptionModule {
       );
     }
     // Step 2: Add predefined missing properties for specific types
-    this.addMissingProperties(type, properties, preAssignedProperties, typesAndProperties);
+    this.addMissingProperties(
+      type,
+      properties,
+      preAssignedProperties,
+      typesAndProperties
+    );
     // console.log("properties", properties);
     // Step 3: Collect all attribute values from the user
     const collectedProperties =
-      await this.parameterManager.collectAllProperties(properties);
+      await this.parameterManager.collectAllProperties(
+        properties,
+        typesAndProperties
+      );
 
     // console.log("collectedProperties", collectedProperties);
     // Filter out properties with empty values
     const filteredCollectedProperties = Object.fromEntries(
-      Object.entries(collectedProperties).filter(([key, value]) =>
-        typeof value === "string" ? value.trim() !== "" : true
-      )
+      Object.entries(collectedProperties).filter(([key, value]) => {
+        if (key === "gx:policy") {
+          // Explicitly allow empty strings for gx:policy
+          return true;
+        }
+        return typeof value === "string" ? value.trim() !== "" : true;
+      })
     );
     const finalProperties = {
       ...preAssignedProperties,
@@ -189,33 +254,48 @@ export class SelfDescriptionModule {
     console.log(`📋 Collected properties for type '${type}'`);
 
     // Step 4: Fit the collected data into the shape object
-    const shapeObject = this.createVcShapeObject(executableParams, finalProperties);
+    const shapeObject = this.createVcShapeObject(
+      executableParams,
+      finalProperties
+    );
 
     return shapeObject;
   }
 
   createVcShapeObject(executableParams, properties) {
     const { type, ontologyVersion, vcUrl, output, issuer } = executableParams;
-    
+
     let id, credentialSubjectId;
-    
-    if (type === "LegalParticipant") {
+
+    // For LegalParticipant, ServiceOffering, or ServiceOfferingLabelLevel1
+    if (
+      type === "LegalParticipant" ||
+      type === "ServiceOffering"
+    ) {
+      // If vcUrl is provided, derive id using existing logic
+      if (vcUrl) {
         if (output) {
           if (output.endsWith(".json")) {
             const fileName = path.basename(output);
             id = `${vcUrl}/${fileName}`;
           } else {
-            id = `${vcUrl}/${type}` + ".json";
+            id = `${vcUrl}/${type}.json`;
           }
         } else {
-            id = `${vcUrl}/${type}` + ".json";
+          id = `${vcUrl}/${type}.json`;
         }
         credentialSubjectId = id;
-    } else {
+      } else {
+        // vcUrl not provided, use uuid4 for id and credentialSubjectId
         id = uuid4();
         credentialSubjectId = id;
+      }
+    } else {
+      // For all other types, use uuid4
+      id = uuid4();
+      credentialSubjectId = id;
     }
-    
+
     let shapeObject = {
       id,
       type: ["VerifiableCredential", `gx:${type}`],
@@ -244,9 +324,12 @@ export class SelfDescriptionModule {
     return shapeObject;
   }
 
-  async generateVpShape(ontologyVersion, selectedFiles) {
-    const verifiableCredentials = [];
-    let legalParticipantVC = null;
+  async generateVpShape(executableParams, selectedFiles) {
+    const { ontologyVersion, issuer } = executableParams;
+    
+    const serviceOfferingVCs = [];
+    const legalParticipantVCs = [];
+    const otherVCs = [];
 
     for (const file of selectedFiles) {
       const filePath = path.resolve(file);
@@ -254,31 +337,47 @@ export class SelfDescriptionModule {
 
       const parsedContent = JSON.parse(fileContent);
 
-        // Check if the credential contains "gx:LegalParticipant" in the "type" array
-        if (parsedContent.type && parsedContent.type.includes("gx:LegalParticipant")) {
-            legalParticipantVC = parsedContent;
-        } else {
-            verifiableCredentials.push(parsedContent);
+      // Check if the credential includes either gx:LegalParticipant or gx:ServiceOffering
+      if (
+        parsedContent.type &&
+        (parsedContent.type.includes("gx:LegalParticipant") ||
+          parsedContent.type.includes("gx:ServiceOffering"))
+      ) {
+        // If gx:ServiceOffering is present (even if gx:LegalParticipant is also present), add it to serviceOfferingVCs
+        if (parsedContent.type.includes("gx:ServiceOffering")) {
+          serviceOfferingVCs.push(parsedContent);
         }
+        // Otherwise, if only gx:LegalParticipant is present, add it to legalParticipantVCs
+        else if (parsedContent.type.includes("gx:LegalParticipant")) {
+          legalParticipantVCs.push(parsedContent);
+        }
+      } else {
+        otherVCs.push(parsedContent);
+      }
     }
 
-    // If a legal participant VC was found, make sure it's the first in the array
-    if (legalParticipantVC) {
-      verifiableCredentials.unshift(legalParticipantVC);
-    }
-    // console.log("verifiableCredentials", verifiableCredentials);
+    // Ordering:
+    // - If gx:ServiceOffering exists, these VCs will be first.
+    // - If only gx:LegalParticipant exists, these will be first.
+    // - Then add all remaining credentials.
+    const orderedCredentials = [
+      ...serviceOfferingVCs,
+      ...legalParticipantVCs,
+      ...otherVCs,
+    ];
 
     let vpShapeObject;
 
     if (ontologyVersion === "22.10 (Tagus)") {
       vpShapeObject = {
-        id:  uuid4(),
+        id: uuid4(),
         type: ["VerifiablePresentation"],
-        verifiableCredential: verifiableCredentials,
+        holder: issuer,
+        verifiableCredential: orderedCredentials,
         "@context": ["https://www.w3.org/2018/credentials/v1"],
       };
     } else if (ontologyVersion === "24.06 (Loire)") {
-      const envelopedCredentials = verifiableCredentials.map((vc) => ({
+      const envelopedCredentials = orderedCredentials.map((vc) => ({
         "@context": ["https://www.w3.org/ns/credentials/v2"],
         type: ["EnvelopedVerifiableCredential"],
         id: "data:application/vc+jwt;" + vc,
@@ -296,7 +395,12 @@ export class SelfDescriptionModule {
 
     return vpShapeObject;
   }
-  addMissingProperties(type, properties, preAssignedProperties, typesAndProperties) {
+  addMissingProperties(
+    type,
+    properties,
+    preAssignedProperties,
+    typesAndProperties
+  ) {
     const missingPropertiesMap = {
       LegalParticipant: {
         "gx:legalName": {
@@ -308,7 +412,26 @@ export class SelfDescriptionModule {
           description: "Textual description of this organization",
           range: "string",
           required: false,
-        }
+        },
+      },
+      ServiceOffering: {
+        "gx:name": {
+          description: "Name of the service offering",
+          range: "string",
+          required: false,
+        },
+        "gx:description": {
+          description: "Description of the service offering",
+          range: "string",
+          required: false,
+        },
+      },
+      ServiceAccessPoint: {
+        "id": {
+          description: "The URL of the service access point.",
+          range: "string",
+          required: true,
+        },
       },
     };
 
@@ -322,13 +445,17 @@ export class SelfDescriptionModule {
     }
     // Compute the SHA-256 hash and assign it to the preAssignedProperties
     if (type === "LegalParticipant") {
-      const termsAndConditionsText = typesAndProperties["GaiaXTermsAndConditions"].preAssignedProperties["gx:termsAndConditions"];
+      const termsAndConditionsText =
+        typesAndProperties["GaiaXTermsAndConditions"].preAssignedProperties[
+          "gx:termsAndConditions"
+        ];
       // console.log("Terms And Conditions Text", termsAndConditionsText);
       const hash = createHash("sha256")
-      .update(termsAndConditionsText)
-      .digest("hex");
+        .update(termsAndConditionsText)
+        .digest("hex");
       // console.log("hash", hash);
-      preAssignedProperties["gx-terms-and-conditions:gaiaxTermsAndConditions"] = hash;
+      preAssignedProperties["gx-terms-and-conditions:gaiaxTermsAndConditions"] =
+        hash;
     }
   }
 }

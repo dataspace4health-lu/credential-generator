@@ -1,8 +1,10 @@
 import inquirer from "inquirer";
 import validator from "validator";
-import path from "path";
 import fs from "fs";
 import countryRegions from "../../data/regionCodes.json";
+import licenseList from "../../data/licenseList.json";
+import { createHash } from "crypto";
+import fetch from "node-fetch";
 
 export class ParameterManager {
   constructor() {
@@ -83,7 +85,18 @@ export class ParameterManager {
         await selfDescriptionModule.fetchOntologyTypesAndProperties(
           parameters.ontologyVersion
         );
-      const validTypes = Object.keys(typesAndProperties);
+
+      // Step 4: Filter the valid types to only show the allowed ones
+      const allowedShapes = [
+        "LegalParticipant",
+        "legalRegistrationNumber",
+        "ServiceOffering",
+        "GaiaXTermsAndConditions",
+      ];
+      
+      const validTypes = Object.keys(typesAndProperties).filter((type) =>
+        allowedShapes.includes(type)
+      );
 
       // Step 4: Validate or ask for the type
       parameters.type = await this.validateOrAskType(
@@ -91,7 +104,15 @@ export class ParameterManager {
         validTypes
       );
       if (parameters.type === "LegalParticipant") {
-        parameters.vcUrl = await this.askForUrl();
+        const includeInServiceOffering = await this.askForConfirmation(
+          "Do you want to include this legal participant in the service offering?"
+        );
+        if (!includeInServiceOffering) {
+          parameters.vcUrl = await this.askForUrl(parameters.type);
+        }
+      }
+      if (parameters.type === "ServiceOffering") {
+        parameters.vcUrl = await this.askForUrl(parameters.type);
       }
       if (
         parameters.type === "LocalRegistrationNumber" ||
@@ -108,9 +129,7 @@ export class ParameterManager {
 
     // If signing, ask whether to use a private key
     if (parameters.shouldSign) {
-      var issuer = await this.askForIssuer(
-        "Enter the issuer DID:"
-      );
+      var issuer = await this.askForIssuer("Enter the issuer DID:");
       parameters.issuer = issuer;
       const useOwnKey = await this.askForConfirmation(
         "🔑 Do you want to use your own signing key?",
@@ -166,17 +185,55 @@ export class ParameterManager {
     ]);
     return answer.type;
   }
-
-  async collectAllProperties(typeProperties) {
+  async collectAllProperties(properties, typesAndProperties) {
     console.log("📋 Collecting all properties for the shape...");
     const collected = {};
 
-    for (const [property, constraints] of Object.entries(typeProperties)) {
+    for (const [property, constraints] of Object.entries(properties)) {
       // console.log(`🔍 Collecting property: ${property}`);
+      if (property === "gx:hash") {
+        continue;
+      }
+      // Handle criteria collection separately
+      if (property === "gx:criteria") {
+        console.log("🔍 Collecting criteria...");
+        if (!typesAndProperties["ServiceOfferingCriteria"]) {
+          console.error(
+            "❌ ServiceOfferingCriteria not found in typesAndProperties"
+          );
+          continue;
+        }
+        collected[property] = await this.collectCriteriaProperties(
+          typesAndProperties["ServiceOfferingCriteria"].properties
+        );
+        continue;
+      }
+
+      // For all other properties, use the modular askForProperty
       collected[property] = await this.askForProperty(property, constraints);
     }
+    // Explicitly drain any buffered input without pausing stdin permanently
+    process.stdin.setEncoding("utf8");
+    process.stdin.resume();
 
+    while (process.stdin.read() !== null) {
+      // Consume buffered input until empty
+    }
     return collected;
+  }
+
+  async collectCriteriaProperties(criteriaProperties) {
+    // Separate out criteria collection into its own function
+    const criteriaResponses = { type: "gx:ServiceOfferingCriteria" };
+    for (const [criteriaProperty, criteriaConstraints] of Object.entries(
+      criteriaProperties
+    )) {
+      criteriaResponses[criteriaProperty] = {
+        type: "gx:CriteriaResponse",
+        ...(await this.askForProperty(criteriaProperty, criteriaConstraints)),
+      };
+    }
+    return criteriaResponses;
   }
 
   async collectRegistrationDetails() {
@@ -242,37 +299,52 @@ export class ParameterManager {
 
     // Build the validation function based on constraints
     const validateInput = (input) => {
+      // Special handling for 'gx:policy' property
+      if (property === "gx:policy") {
+        // Always valid, even if empty
+        return true;
+      }
+      if (property === "gx:port") {
+        if (!validator.isInt(input)) {
+          return "⚠️ Port must be a valid number.";
+        }
+        return true;
+      }
+
       if (required && !input) {
         return `⚠️ This property is required.`;
       }
-    
+      const urlProperties = ["id", "gx:openAPI"];
+
+      if (urlProperties.includes(property) && input) {
+        if (!validator.isURL(input, { require_protocol: true })) {
+          return `⚠️ ${property} must be a valid URL.`;
+        }
+      }
       // Define property groups for special validations
       const uuidProperties = [
         "gx:legalRegistrationNumber",
         "gx:registrationNumber",
-        "gx:gaiaxTermsAndConditions"
+        "gx:gaiaxTermsAndConditions",
+        "gx:assignedTo",
+        "gx:hostedOn",
+        "gx:instanceOf",
+        "gx:exposedThrough",
       ];
-      const urlProperty = "gx:url";
       const addressProperties = [
         "gx:headquarterAddress",
         "gx:legalAddress",
-        "gx:headquartersAddress"
+        "gx:headquartersAddress",
       ];
-    
-      // Special case for UUID and URL validations
-      if ([urlProperty, ...uuidProperties].includes(property)) {
-        if (property === urlProperty) {
-          if (!validator.isURL(input)) {
-            return `⚠️ Value must be a valid URL (e.g., https://example.com/credential).`;
-          }
-        } else {
-          if (!validator.isUUID(input)) {
-            return `⚠️ Value must be a valid UUID.`;
-          }
+
+      // Special case for UUID validations
+      if (uuidProperties.includes(property)) {
+        if (!validator.isUUID(input)) {
+          return `⚠️ Value must be a valid UUID.`;
         }
         return true;
       }
-    
+
       // Special case for address properties (XX-XX format)
       if (addressProperties.includes(property)) {
         if (!countryRegions.includes(input)) {
@@ -280,21 +352,11 @@ export class ParameterManager {
         }
         return true;
       }
-      if (property === "gx:hash") {
-        const expectedHash =
-          "4bd7554097444c960292b4726c2efa1373485e8a5565d94d41195214c5e0ceb3";
-        if (input !== expectedHash) {
-          return `⚠️ Value must be the exact SHA-256 hash: ${expectedHash}`;
-        }
-        return true;
-      }
-      if (property === "gx-terms-and-conditions:gaiaxTermsAndConditions") {
-        const expectedHash =
-          "70c1d713215f95191a11d38fe2341faed27d19e083917bc8732ca4fea4976700";
-        if (input !== expectedHash) {
-          return `⚠️ Value must be the exact SHA-256 hash: ${expectedHash}`;
-        }
-        return true;
+
+      const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+$/;
+
+      if (property === "gx:providedBy" || property === "gx:producedBy" || property === "gx:maintainedBy" || property === "gx:tenantOwnedBy") {
+        return didRegex.test(input) || `⚠️ Value must be a valid DID.`;
       }
 
       switch (range) {
@@ -309,6 +371,10 @@ export class ParameterManager {
           if (!["true", "false"].includes(input.toLowerCase()))
             return `⚠️ Value must be either 'true' or 'false'.`;
           break;
+        case "datetime":
+          if (!validator.isISO8601(input))
+            return `⚠️ Value must be a valid ISO 8601 date format.`;
+          break;
         case "string":
           if (input && !isNaN(input))
             return `⚠️ Value must be a non-numeric string.`;
@@ -319,7 +385,230 @@ export class ParameterManager {
 
       return true;
     };
+    // Handle individual criteria properties (e.g., gx:P4.1.2, gx:P1.1.1, gx:P3.1.1)
+    if (property.startsWith("gx:P")) {
+      console.log(`🔍 Collecting response for: ${property}`);
 
+      const answer = await inquirer.prompt([
+        {
+          type: "list",
+          name: "response",
+          message: `Select response for ${property}: ${description}`,
+          choices: ["Confirm", "Deny", "Not applicable"],
+          validate: (input) => (input ? true : "⚠️ Response is required."),
+        },
+        {
+          type: "input",
+          name: "reason",
+          message: "Provide a reason (Optional reason when not applicable)",
+          when: (answers) => answers.response === "Not applicable",
+        },
+        {
+          type: "confirm",
+          name: "addEvidence",
+          message: "Do you want to provide evidence? (Default: No)",
+          default: false,
+        },
+        {
+          type: "input",
+          name: "gx:website",
+          message: "Provide a link to the website for evidence information:",
+          when: (answers) => answers.addEvidence,
+          validate: (input) =>
+            validator.isURL(input, { require_protocol: true }) ||
+            "⚠️ Value must be a valid URL (e.g., https://example.com).",
+        },
+        {
+          type: "input",
+          name: "gx:pdf",
+          message:
+            "Provide a link to the attestation PDF for evidence information:",
+          when: (answers) => answers.addEvidence,
+          validate: (input) =>
+            validator.isURL(input, { require_protocol: true }) ||
+            "⚠️ Value must be a valid URL (e.g., https://example.com).",
+        },
+      ]);
+      let evidence = {};
+      if (answer.addEvidence) {
+        evidence["gx:evidence"] = {
+          "gx:website": answer["gx:website"],
+          "gx:pdf": answer["gx:pdf"],
+        };
+      }
+
+      return {
+        "gx:description": description,
+        "gx:response": answer.response,
+        ...(answer.reason && { "gx:reason": answer.reason }),
+        ...evidence,
+      };
+    }
+    // Special case for gx:termsAndConditions
+    if (property === "gx:termsAndConditions" || property === "gx:URL") {
+      let url;
+      let termsAndConditionsText;
+      let hash;
+
+      while (true) {
+        const answer = await inquirer.prompt([
+          {
+            type: "input",
+            name: "gx:URL",
+            message: `Enter URL for gx:termsAndConditions:`,
+            validate: (input) =>
+              validator.isURL(input, { require_protocol: true }) ||
+              `⚠️ Value must be a valid URL (e.g., https://baconipsum.com/api/?type=all-meat&paras=2&format=text).`,
+          },
+        ]);
+
+        url = answer["gx:URL"];
+
+        try {
+          const response = await fetch(url);
+          if (!response.ok)
+            throw new Error(`Failed to fetch URL: ${response.statusText}`);
+
+          termsAndConditionsText = await response.text(); // Get the text content
+          hash = createHash("sha256")
+            .update(termsAndConditionsText)
+            .digest("hex"); // Compute SHA-256 hash
+          break; // Exit the loop if fetch is successful
+        } catch (error) {
+          console.error(`❌ Error fetching URL: ${error.message}`);
+          console.log(`⚠️ Please enter a reachable URL.`);
+        }
+      }
+
+      return {
+        "gx:URL": url,
+        "gx:hash": hash,
+      };
+    }
+    // Add this case explicitly within your askForProperty method
+    if (property === "gx:serviceAccessPoint") {
+      const serviceAccessPoints = [];
+
+      let addMore = true;
+      while (addMore) {
+        const { accessPoint } = await inquirer.prompt([
+          {
+            type: "input",
+            name: "accessPoint",
+            message: "Enter the id (UUID) of the service access point:",
+            validate: (input) => {
+              return (
+                validator.isUUID(input) ||
+                "⚠️ Invalid UUID format. Please enter a valid UUID."
+              );
+            },
+          },
+        ]);
+
+        serviceAccessPoints.push({ "@id": accessPoint });
+
+        const { continueAdding } = await inquirer.prompt([
+          {
+            type: "confirm",
+            name: "continueAdding",
+            message: "Would you like to add another service access point?",
+            default: false,
+          },
+        ]);
+
+        addMore = continueAdding;
+      }
+
+      return serviceAccessPoints;
+    }
+    // Special case for gx:dataAccountExport
+    if (property === "gx:dataAccountExport") {
+      const answer = await inquirer.prompt([
+        {
+          type: "list",
+          name: "gx:requestType",
+          message: "Select request type for gx:dataAccountExport:",
+          choices: [
+            "API",
+            "email",
+            "webform",
+            "unregisteredLetter",
+            "registeredLetter",
+            "supportCenter",
+          ],
+        },
+        {
+          type: "list",
+          name: "gx:accessType",
+          message: "Select access type for gx:dataAccountExport:",
+          choices: ["digital", "physical"],
+        },
+        {
+          type: "input",
+          name: "gx:formatType",
+          message:
+            "Enter format type for gx:dataAccountExport (e.g., application/json):",
+          validate: (input) =>
+            /^\w+\/[-+.\w]+$/.test(input) ||
+            `⚠️ Format type must match pattern (e.g., application/json).`,
+        },
+      ]);
+
+      return {
+        "gx:requestType": answer["gx:requestType"],
+        "gx:accessType": answer["gx:accessType"],
+        "gx:formatType": answer["gx:formatType"],
+      };
+    }
+    if (property === "gx:dataProtectionRegime") {
+      const answer = await inquirer.prompt([
+        {
+          type: "list",
+          name: "gx:dataProtectionRegime",
+          message: "Select data protection regime:",
+          choices: [
+            {
+              name: "GDPR2016: General Data Protection Regulation / EEA",
+              value: "GDPR2016",
+            },
+            {
+              name: "LGPD2019: General Personal Data Protection Law (Lei Geral de Proteção de Dados Pessoais) / BRA",
+              value: "LGPD2019",
+            },
+            {
+              name: "PDPA2012: Personal Data Protection Act 2012 / SGP",
+              value: "PDPA2012",
+            },
+            {
+              name: "CCPA2018: California Consumer Privacy Act / US-CA",
+              value: "CCPA2018",
+            },
+            {
+              name: "VCDPA2021: Virginia Consumer Data Protection Act / US-VA",
+              value: "VCDPA2021",
+            },
+          ],
+        },
+      ]);
+      return answer["gx:dataProtectionRegime"];
+    }
+    if (property === "gx:license") {
+      if (!licenseList.length) {
+        throw new Error("❌ License list is empty or could not be loaded.");
+      }
+
+      const answer = await inquirer.prompt([
+        {
+          type: "list",
+          name: property,
+          message: `Select a license for ${property}:`,
+          choices: licenseList,
+        },
+      ]);
+      return answer[property];
+    }
+
+    // Default case: Prompt for single property
     const answer = await inquirer.prompt([
       {
         type: "input",
@@ -328,15 +617,32 @@ export class ParameterManager {
           description || "No description"
         }):`,
         validate: validateInput,
+        filter: (input) => {
+          // Explicitly handle gx:port conversion
+          if (property === "gx:port") {
+            return String(input.trim());
+          }
+          return input;
+        },
       },
     ]);
+    // Explicitly handle empty input for gx:policy
+    if (property === "gx:policy" && !answer[property]) {
+      return "default: allow";
+    }
     if (
       property === "gx:legalRegistrationNumber" ||
-      property === "gx:registrationNumber"
+      property === "gx:registrationNumber" ||
+      property === "gx:providedBy" ||
+      property === "gx:assignedTo" ||
+      property === "gx:maintainedBy" ||
+      property === "gx:hostedOn" ||
+      property === "gx:instanceOf" ||
+      property === "gx:tenantOwnedBy" ||
+      property === "gx:producedBy" ||
+      property === "gx:exposedThrough"
     ) {
-      return {
-        id: answer[property],
-      };
+      return { id: answer[property] };
     }
     if (
       [
@@ -346,9 +652,7 @@ export class ParameterManager {
         "legalAddress",
       ].includes(property)
     ) {
-      return {
-        "gx:countrySubdivisionCode": answer[property],
-      };
+      return { "gx:countrySubdivisionCode": answer[property] };
     }
 
     return answer[property];
@@ -381,7 +685,10 @@ export class ParameterManager {
           // Regular expression for validating a DID without allowing fragments (#...)
           const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+$/;
 
-          if (validator.isURL(input) || didRegex.test(input)) {
+          if (
+            validator.isURL(input, { require_protocol: true }) ||
+            didRegex.test(input)
+          ) {
             return true;
           }
           return "⚠️ Invalid issuer. Use a valid DID (e.g., did:web:example.com).";
@@ -391,14 +698,18 @@ export class ParameterManager {
     return answer.issuer;
   }
 
-  async askForUrl() {
+  async askForUrl(type) {
+    const message =
+      type === "ServiceOffering" || type === "ServiceOfferingLabelLevel1"
+        ? "🔍 Enter the URL of the service offering:"
+        : "🔍 Enter the URL of the legal participant:";
     const answer = await inquirer.prompt([
       {
         type: "input",
         name: "url",
-        message: "🔍 Enter the URL of the legal participant:",
+        message: message,
         validate: (input) => {
-          if (validator.isURL(input)) {
+          if (validator.isURL(input, { require_protocol: true })) {
             return true;
           }
           return "⚠️ Invalid URL. Please enter a valid URL.";
@@ -460,7 +771,7 @@ export class ParameterManager {
         validate: (input) => {
           // Ensure it's either a valid URL or DID
           if (
-            validator.isURL(input) ||
+            validator.isURL(input, { require_protocol: true }) ||
             /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+(#.+)?$/.test(input)
           ) {
             return true;
