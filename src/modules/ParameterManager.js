@@ -329,7 +329,6 @@ export class ParameterManager {
         "gx:assignedTo",
         "gx:hostedOn",
         "gx:instanceOf",
-        "gx:tenantOwnedBy",
         "gx:exposedThrough",
       ];
       const addressProperties = [
@@ -356,7 +355,7 @@ export class ParameterManager {
 
       const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+$/;
 
-      if (property === "gx:providedBy" || property === "gx:producedBy" || property === "gx:maintainedBy") {
+      if (property === "gx:providedBy" || property === "gx:producedBy" || property === "gx:maintainedBy" || property === "gx:tenantOwnedBy") {
         return didRegex.test(input) || `⚠️ Value must be a valid DID.`;
       }
 
