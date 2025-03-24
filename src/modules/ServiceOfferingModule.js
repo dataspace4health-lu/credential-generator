@@ -38,7 +38,7 @@ export class ServiceOfferingModule {
         type,
         vcUrl,
       });
-      console.log("vcShape: ", vcShape);
+      // console.log("vcShape: ", vcShape);
       // Store the ID from the first shape (ServiceOffering)
       this.previousShapeIds[type] = vcShape.credentialSubject.id;
 
