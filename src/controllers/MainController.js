@@ -45,10 +45,26 @@ export class MainController {
           this.selfDescriptionModule
         );
 
-        if (parameters.credentialType === "Verifiable Presentation (VP)") {
-          await this.handleVerifiablePresentation(executableParams);
+        if (parameters.uploadedCredentialPath) {
+          console.log("🔄 Uploading existing credential for signing...");
+          const credential = await this.outputManager.loadCredential(
+            parameters.uploadedCredentialPath
+          );
+          var signedCredential = await this.handleSigningUploadedCredential(
+            executableParams,
+            credential
+          );
+            // Save the signed credential
+            const outputFilePath = parameters.output || "./output";
+            const fileName = "signed_credential.json";
+            await this.outputManager.saveToFile(outputFilePath, fileName, signedCredential);
+
         } else {
-          await this.handleVerifiableCredential(executableParams);
+          if (parameters.credentialType === "Verifiable Presentation (VP)") {
+            await this.handleVerifiablePresentation(executableParams);
+          } else {
+            await this.handleVerifiableCredential(executableParams);
+          }
         }
         console.log("\n🎉 Workflow completed successfully!");
       } catch (error) {
@@ -171,7 +187,7 @@ export class MainController {
     }
 
     // General case for other types
-    console.log("executableParams", executableParams);
+    // console.log("executableParams", executableParams);
     let vpShape
     vpShape = await this.selfDescriptionModule.generateVpShape(
       executableParams,
@@ -206,4 +222,28 @@ export class MainController {
     );
     console.log("✅ VP handling completed successfully!");
   }
+  async handleSigningUploadedCredential(executableParams, credential) {
+    const { ontologyVersion = "22.10 (Tagus)", privateKeyPath, verificationMethod, output } = executableParams;
+  
+    console.log("✍️  Checking credential for existing proof...");
+  
+    let options = {};
+  
+    // Check if the credential has existing proofs
+    if (credential.proof) {
+      console.log("🔄 Existing proof detected. Preparing to add a new proof...");
+      options.previousProof = credential.proof.id || (Array.isArray(credential.proof) ? credential.proof.map(p => p.id) : undefined);
+    }
+  
+    // Call the updated signDocument function in SignatureModule
+    const signedCredential = await this.signatureModule.signDocument(
+      ontologyVersion,
+      credential,
+      privateKeyPath,
+      verificationMethod,
+      options
+    );
+    return signedCredential
+  }
+  
 }

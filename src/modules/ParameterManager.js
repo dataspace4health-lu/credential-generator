@@ -44,6 +44,41 @@ export class ParameterManager {
   }
 
   async collectExecutableParameters(parameters, selfDescriptionModule) {
+    // Step 1: Ask the user if they want to upload a credential
+    const { uploadCredential } = await inquirer.prompt([
+      {
+      type: "confirm",
+      name: "uploadCredential",
+      message: "📤 Do you want to upload an existing credential for signing?",
+      default: false,
+      },
+    ]);
+
+    if (uploadCredential) {
+      parameters.uploadedCredentialPath = await this.askForFilePath(
+        "Enter the path to the credential file:"
+      );
+
+      var issuer = await this.askForIssuer("Enter the issuer DID:");
+      parameters.issuer = issuer;
+      const useOwnKey = await this.askForConfirmation(
+        "🔑 Do you want to use your own signing key?",
+        false
+      );
+      if (useOwnKey) {
+        parameters.privateKeyPath = await this.askForFilePath(
+          "Enter the path to your private key file:"
+        );
+        parameters.verificationMethod = await this.askForVerificationMethod();
+      } else {
+        console.log("🔑 Using default signing key...\n");
+        parameters.privateKey = false; // Set default signing key logic if needed
+        parameters.verificationMethod = issuer + "#key-0";
+        // parameters.verificationMethod = "did:web:dataspace4health.local#key-0";
+      }
+      return parameters; // Skip further input collection
+    }
+
     // Step 1: Select Credential Type (VC or VP)
     if (
       !parameters.credentialType ||
@@ -56,7 +91,7 @@ export class ParameterManager {
       );
 
       parameters.credentialType = await this.askFromChoices(
-        "📜 Select the credential type:",
+        "\n📜 Select the credential type:",
         this.validCredentialTypes
       );
     }
@@ -93,7 +128,7 @@ export class ParameterManager {
         "ServiceOffering",
         "GaiaXTermsAndConditions",
       ];
-      
+
       const validTypes = Object.keys(typesAndProperties).filter((type) =>
         allowedShapes.includes(type)
       );
