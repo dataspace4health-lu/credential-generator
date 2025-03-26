@@ -109,14 +109,12 @@ export class SignatureModule {
   }
 
   async signWithJWS(data, privateKey, verificationMethod, algorithm = "ES256") {
-
     data.proof = {
       ...data.proof,
-      id: uuidv4() // this id can later be referenced as part of the chain proof
+      id: uuidv4(), // this id can later be referenced as part of the chain proof
     };
 
     // console.log("data to sign", data);
-
 
     const signer = new JsonWebSignature2020Signer({
       privateKey: privateKey,
@@ -224,18 +222,32 @@ export class SignatureModule {
       credentialWithoutProof,
       privateKey,
       verificationMethod,
-      ontologyVersion
+      ontologyVersion,
+      options
     );
     console.log(
       "🔄 [signCredentialWithExistingProofs] New signed credential generated."
     );
 
-    // Append the new proof to the proof chain
-    proofArray.push(newSignedCredential.proof);
+    const newProof = newSignedCredential.proof;
+
+    // STEP 1: Assign `id` to last proof if it doesn’t have one
+    const lastProof = proofArray[proofArray.length - 1];
+    if (!lastProof.id) {
+      lastProof.id = "urn:uuid:" + uuidv4();
+      console.log(`🆔 Assigned id to previous proof: ${lastProof.id}`);
+    }
+
+    // STEP 2: Assign `id` and `previousProof` to new proof
+    newProof.id = "urn:uuid:" + uuidv4();
+    newProof.previousProof = lastProof.id;
+
+    console.log(`🆕 New proof id: ${newProof.id}`);
+    console.log(`🔗 Linked to previousProof: ${newProof.previousProof}`);
+
+    // STEP 3: Append new proof to the array
+    proofArray.push(newProof);
     newSignedCredential.proof = proofArray;
-    console.log(
-      "✅ [signCredentialWithExistingProofs] New proof successfully added to the proof chain."
-    );
 
     return newSignedCredential;
   }
