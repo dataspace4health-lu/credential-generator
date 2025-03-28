@@ -50,13 +50,55 @@ export class MainController {
           const credential = await this.outputManager.loadCredential(
             parameters.uploadedCredentialPath
           );
+
+          let credentialToSign = credential;
+
+          if (
+            Array.isArray(credential.type) &&
+            credential.type.includes("VerifiablePresentation")
+          ) {
+            console.log(
+              "📦 Detected Verifiable Presentation. Fetching contained credentials..."
+            );
+
+            const vcOptions = credential.verifiableCredential
+              .filter(
+                (vc) =>
+                  Array.isArray(vc.type) &&
+                  vc.type.includes("VerifiableCredential")
+              )
+              .map((vc) => {
+                const label =
+                  vc.type.find((t) => t !== "VerifiableCredential") ||
+                  vc.type[0];
+                return {
+                  name: `${label} (${vc.id})`,
+                  value: vc,
+                };
+              });
+
+            if (vcOptions.length === 0) {
+              throw new Error(
+                "No Verifiable Credentials found inside the presentation."
+              );
+            }
+
+            const selectedCredential = await this.parameterManager.askFromChoices(
+              "\nWhich credential would you like to sign?",
+              vcOptions
+            );
+
+           credentialToSign = selectedCredential;
+          }
           var signedCredential = await this.handleSigningUploadedCredential(
             executableParams,
-            credential
+            credentialToSign
           );
             // Save the signed credential
             const outputFilePath = parameters.output || "./output";
-            const fileName = "signed_credential.json";
+            const rawType = credentialToSign.credentialSubject?.type || "credential";
+            const safeType = rawType.replace(/[:gx]/g, ''); // remove gx: or any other prefix
+            const fileName = `signed_${safeType}.json`;
             await this.outputManager.saveToFile(outputFilePath, fileName, signedCredential);
 
         } else {

@@ -38,19 +38,29 @@ export class ParameterManager {
           --shouldSign=<true|false>     Specify whether to sign the shape
           --privateKeyPath=<path>       Specify the path to the private key for signing
           --verificationMethod=<method> Specify the verification method
-          --output=<path>               Specify the output directory or file path
+          --output=<path>               Specify the output directory or file 
+          --input=<filePath>            Specify the path to the input file
           --help                        Display this help message
 `);
   }
 
   async collectExecutableParameters(parameters, selfDescriptionModule) {
-    // Step 1: Ask the user if they want to upload a credential
+    if (parameters.input) {
+      parameters.uploadedCredentialPath = await this.validateOrPromptFilePath(
+        parameters.input,
+        "Enter the path to the credential file:"
+      );
+
+      parameters.issuer = await this.askForIssuer("Enter the issuer DID:");
+      await this.handleSigningKey(parameters);
+      return parameters; // Skip further input collection
+    }
     const { uploadCredential } = await inquirer.prompt([
       {
-      type: "confirm",
-      name: "uploadCredential",
-      message: "📤 Do you want to upload an existing credential for signing?",
-      default: false,
+        type: "confirm",
+        name: "uploadCredential",
+        message: "📤 Do you want to upload an existing credential for signing?",
+        default: false,
       },
     ]);
 
@@ -59,60 +69,25 @@ export class ParameterManager {
         "Enter the path to the credential file:"
       );
 
-      var issuer = await this.askForIssuer("Enter the issuer DID:");
-      parameters.issuer = issuer;
-      const useOwnKey = await this.askForConfirmation(
-        "🔑 Do you want to use your own signing key?",
-        false
-      );
-      if (useOwnKey) {
-        parameters.privateKeyPath = await this.askForFilePath(
-          "Enter the path to your private key file:"
-        );
-        parameters.verificationMethod = await this.askForVerificationMethod();
-      } else {
-        console.log("🔑 Using default signing key...\n");
-        parameters.privateKey = false; // Set default signing key logic if needed
-        parameters.verificationMethod = issuer + "#key-0";
-        // parameters.verificationMethod = "did:web:dataspace4health.local#key-0";
-      }
-      return parameters; // Skip further input collection
+      parameters.issuer = await this.askForIssuer("Enter the issuer DID:");
+      await this.handleSigningKey(parameters);
+      return parameters;
     }
 
     // Step 1: Select Credential Type (VC or VP)
-    if (
-      !parameters.credentialType ||
-      !this.validateValue(parameters.credentialType, this.validCredentialTypes)
-    ) {
-      console.warn(
-        parameters.credentialType
-          ? `⚠️  Invalid Credential Type : ${parameters.credentialType}`
-          : "⚠️  Credential Type not provided."
-      );
-
-      parameters.credentialType = await this.askFromChoices(
-        "\n📜 Select the credential type:",
-        this.validCredentialTypes
-      );
-    }
+    parameters.credentialType = await this.validateOrPromptChoice(
+      parameters.credentialType,
+      this.validCredentialTypes,
+      "\n📜 Select the credential type:",
+      "⚠️  Invalid Credential Type"
+    );
     // Step 2: Validate or ask for the ontology version
-    if (
-      !parameters.ontologyVersion ||
-      !this.validateValue(
-        parameters.ontologyVersion,
-        this.validOntologyVersions
-      )
-    ) {
-      console.warn(
-        parameters.ontologyVersion
-          ? `⚠️  Invalid ontology version: ${parameters.ontologyVersion}`
-          : "⚠️  Ontology version not provided."
-      );
-      parameters.ontologyVersion = await this.askFromChoices(
-        "🌐 Select the ontology version:",
-        this.validOntologyVersions
-      );
-    }
+    parameters.ontologyVersion = await this.validateOrPromptChoice(
+      parameters.ontologyVersion,
+      this.validOntologyVersions,
+      "🌐 Select the ontology version:",
+      "⚠️  Invalid ontology version"
+    );
 
     // Step 3: Fetch valid types from SelfDescriptionModule
     if (parameters.credentialType === "Verifiable Credential (VC)") {
@@ -185,6 +160,47 @@ export class ParameterManager {
     return parameters;
   }
 
+  // Helper function to validate or prompt for a file path
+  async validateOrPromptFilePath(filePath, promptMessage) {
+    if (fs.existsSync(filePath)) {
+      console.log("📥 Using provided input file for credential generation.");
+      return filePath;
+    } else {
+      console.warn(`⚠️  Invalid input file path: ${filePath}`);
+      return await this.askForFilePath(promptMessage);
+    }
+  }
+  // Helper function to handle signing key logic
+  async handleSigningKey(parameters) {
+    const useOwnKey = await this.askForConfirmation(
+      "🔑 Do you want to use your own signing key?",
+      false
+    );
+    if (useOwnKey) {
+      parameters.privateKeyPath = await this.askForFilePath(
+        "Enter the path to your private key file:"
+      );
+      parameters.verificationMethod = await this.askForVerificationMethod();
+    } else {
+      console.log("🔑 Using default signing key...\n");
+      parameters.privateKey = false; // Set default signing key logic if needed
+      parameters.verificationMethod = parameters.issuer + "#key-0";
+    }
+  }
+
+  // Helper function to validate or prompt for a choice
+  async validateOrPromptChoice(
+    value,
+    validValues,
+    promptMessage,
+    warningMessage
+  ) {
+    if (!value || !this.validateValue(value, validValues)) {
+      console.warn(warningMessage);
+      return await this.askFromChoices(promptMessage, validValues);
+    }
+    return value;
+  }
   async collectFilesForVP() {
     console.log("📂 Collecting files for Verifiable Presentation (VP)...");
     const files = [];
@@ -390,7 +406,12 @@ export class ParameterManager {
 
       const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+$/;
 
-      if (property === "gx:providedBy" || property === "gx:producedBy" || property === "gx:maintainedBy" || property === "gx:tenantOwnedBy") {
+      if (
+        property === "gx:providedBy" ||
+        property === "gx:producedBy" ||
+        property === "gx:maintainedBy" ||
+        property === "gx:tenantOwnedBy"
+      ) {
         return didRegex.test(input) || `⚠️ Value must be a valid DID.`;
       }
 
