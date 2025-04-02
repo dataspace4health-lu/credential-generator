@@ -45,10 +45,68 @@ export class MainController {
           this.selfDescriptionModule
         );
 
-        if (parameters.credentialType === "Verifiable Presentation (VP)") {
-          await this.handleVerifiablePresentation(executableParams);
+        if (parameters.uploadedCredentialPath) {
+          console.log("🔄 Uploading existing credential for signing...");
+          const credential = await this.outputManager.loadCredential(
+            parameters.uploadedCredentialPath
+          );
+
+          let credentialToSign = credential;
+
+          if (
+            Array.isArray(credential.type) &&
+            credential.type.includes("VerifiablePresentation")
+          ) {
+            console.log(
+              "📦 Detected Verifiable Presentation. Fetching contained credentials..."
+            );
+
+            const vcOptions = credential.verifiableCredential
+              .filter(
+                (vc) =>
+                  Array.isArray(vc.type) &&
+                  vc.type.includes("VerifiableCredential")
+              )
+              .map((vc) => {
+                const label =
+                  vc.type.find((t) => t !== "VerifiableCredential") ||
+                  vc.type[0];
+                return {
+                  name: `${label} (${vc.id})`,
+                  value: vc,
+                };
+              });
+
+            if (vcOptions.length === 0) {
+              throw new Error(
+                "No Verifiable Credentials found inside the presentation."
+              );
+            }
+
+            const selectedCredential = await this.parameterManager.askFromChoices(
+              "\nWhich credential would you like to sign?",
+              vcOptions
+            );
+
+           credentialToSign = selectedCredential;
+          }
+          var signedCredential = await this.handleSigningUploadedCredential(
+            executableParams,
+            credentialToSign
+          );
+            // Save the signed credential
+            const outputFilePath = parameters.output || "./output";
+            const rawType = credentialToSign.credentialSubject?.type || "credential";
+            const safeType = rawType.replace(/[:gx]/g, ''); // remove gx: or any other prefix
+            const fileName = `signed_${safeType}.json`;
+            await this.outputManager.saveToFile(outputFilePath, fileName, signedCredential);
+
         } else {
-          await this.handleVerifiableCredential(executableParams);
+          if (parameters.credentialType === "Verifiable Presentation (VP)") {
+            await this.handleVerifiablePresentation(executableParams);
+          } else {
+            await this.handleVerifiableCredential(executableParams);
+          }
         }
         console.log("\n🎉 Workflow completed successfully!");
       } catch (error) {
@@ -171,7 +229,7 @@ export class MainController {
     }
 
     // General case for other types
-    console.log("executableParams", executableParams);
+    // console.log("executableParams", executableParams);
     let vpShape
     vpShape = await this.selfDescriptionModule.generateVpShape(
       executableParams,
@@ -206,4 +264,28 @@ export class MainController {
     );
     console.log("✅ VP handling completed successfully!");
   }
+  async handleSigningUploadedCredential(executableParams, credential) {
+    const { ontologyVersion = "22.10 (Tagus)", privateKeyPath, verificationMethod, output } = executableParams;
+  
+    console.log("✍️  Checking credential for existing proof...");
+  
+    let options = {};
+  
+    // Check if the credential has existing proofs
+    if (credential.proof) {
+      console.log("🔄 Existing proof detected. Preparing to add a new proof...");
+      options.previousProof = credential.proof.id || (Array.isArray(credential.proof) ? credential.proof.map(p => p.id) : undefined);
+    }
+  
+    // Call the updated signDocument function in SignatureModule
+    const signedCredential = await this.signatureModule.signDocument(
+      ontologyVersion,
+      credential,
+      privateKeyPath,
+      verificationMethod,
+      options
+    );
+    return signedCredential
+  }
+  
 }
