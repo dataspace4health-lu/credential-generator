@@ -428,7 +428,7 @@ export class ParameterManager {
             return `⚠️ Value must be either 'true' or 'false'.`;
           break;
         case "datetime":
-          if (!validator.isISO8601(input))
+          if (input && !validator.isISO8601(input))
             return `⚠️ Value must be a valid ISO 8601 date format.`;
           break;
         case "string":
