@@ -59,7 +59,7 @@ export class ParameterManager {
       {
         type: "confirm",
         name: "uploadCredential",
-        message: "📤 Do you want to upload an existing credential for signing?",
+        message: "📤 Do you want to use an existing credential for signing?",
         default: false,
       },
     ]);
