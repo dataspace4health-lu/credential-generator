@@ -60,9 +60,23 @@ export class OutputManager {
         await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
       }
       await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2));
-      console.log(`✅ File saved to: ${filePath}\n`);
+      console.log(`\n✅ File saved to: ${filePath}\n`);
     } catch (error) {
       console.error("❌ Error saving file:", error);
+    }
+  }
+
+  async loadCredential(filePath) {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`File not found: ${filePath}`);
+      }
+
+      const data = await fs.promises.readFile(filePath, "utf8");
+      return JSON.parse(data);
+    } catch (error) {
+      console.error(`❌ Error loading credential: ${error.message}`);
+      throw error;
     }
   }
 }
