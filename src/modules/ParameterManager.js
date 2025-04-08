@@ -46,14 +46,7 @@ export class ParameterManager {
 
   async collectExecutableParameters(parameters, selfDescriptionModule) {
     if (parameters.input) {
-      parameters.uploadedCredentialPath = await this.validateOrPromptFilePath(
-        parameters.input,
-        "Enter the path to the credential file:"
-      );
-
-      parameters.issuer = await this.askForIssuer("Enter the issuer DID:");
-      await this.handleSigningKey(parameters);
-      return parameters; // Skip further input collection
+      return await this.handleInputFile(parameters);
     }
     const { uploadCredential } = await inquirer.prompt([
       {
@@ -65,31 +58,92 @@ export class ParameterManager {
     ]);
 
     if (uploadCredential) {
-      parameters.uploadedCredentialPath = await this.askForFilePath(
-        "Enter the path to the credential file:"
-      );
-
-      parameters.issuer = await this.askForIssuer("Enter the issuer DID:");
-      await this.handleSigningKey(parameters);
-      return parameters;
+      return await this.handleUploadCredential(parameters);
     }
 
     // Step 1: Select Credential Type (VC or VP)
+    await this.collectCredentialType(parameters);
+    // Step 2: Validate or ask for the ontology version
+    await this.collectOntologyVersion(parameters);
+    // Step 3: Fetch valid types from SelfDescriptionModule
+    await this.collectTypeSpecificParameters(parameters, selfDescriptionModule);
+
+    // Early return for RegistrationNumber types
+    if (
+      parameters.type === "LocalRegistrationNumber" ||
+      parameters.type === "legalRegistrationNumber"
+    ) {
+      console.log(
+        "🔍 RegistrationNumber type detected. Skipping signing process."
+      );
+      return parameters;
+    }
+
+    // Ask if the user wants to sign
+    parameters.shouldSign = await this.askForConfirmation(
+      "✍️  Do you want to sign the generated shape?"
+    );
+
+    // If signing, ask whether to use a private key
+    if (parameters.shouldSign) {
+      parameters.issuer = await this.askForIssuer("Enter the issuer DID:");
+      await this.handleSigningKey(parameters);
+    }
+    return parameters;
+  }
+
+  async handleInputFile(parameters) {
+    // Validate or prompt for the input file path
+    parameters.uploadedCredentialPath = await this.validateOrPromptFilePath(
+      parameters.input,
+      "Enter the path to the credential file:"
+    );
+
+    // Prompt for the issuer DID
+    parameters.issuer = await this.askForIssuer("Enter the issuer DID:");
+
+    // Handle signing key logic
+    await this.handleSigningKey(parameters);
+
+    // Return the updated parameters
+    return parameters;
+  }
+
+  async handleUploadCredential(parameters) {
+    // Prompt the user for the path to the credential file
+    parameters.uploadedCredentialPath = await this.askForFilePath(
+      "Enter the path to the credential file:"
+    );
+
+    // Prompt the user for the issuer DID
+    parameters.issuer = await this.askForIssuer("Enter the issuer DID:");
+
+    // Handle signing key logic
+    await this.handleSigningKey(parameters);
+
+    // Return the updated parameters
+    return parameters;
+  }
+
+  async collectCredentialType(parameters) {
     parameters.credentialType = await this.validateOrPromptChoice(
       parameters.credentialType,
       this.validCredentialTypes,
       "\n📜 Select the credential type:",
       "⚠️  Invalid Credential Type"
     );
-    // Step 2: Validate or ask for the ontology version
+  }
+
+  async collectOntologyVersion(parameters) {
     parameters.ontologyVersion = await this.validateOrPromptChoice(
       parameters.ontologyVersion,
       this.validOntologyVersions,
       "🌐 Select the ontology version:",
-      "⚠️  Invalid ontology version"
+      "⚠️ Invalid ontology version. Please select a valid one."
     );
+  }
 
-    // Step 3: Fetch valid types from SelfDescriptionModule
+  async collectTypeSpecificParameters(parameters, selfDescriptionModule) {
     if (parameters.credentialType === "Verifiable Credential (VC)") {
       const typesAndProperties =
         await selfDescriptionModule.fetchOntologyTypesAndProperties(
@@ -132,34 +186,7 @@ export class ParameterManager {
         return parameters;
       }
     }
-    // Ask if the user wants to sign
-    parameters.shouldSign = await this.askForConfirmation(
-      "✍️  Do you want to sign the generated shape?"
-    );
-
-    // If signing, ask whether to use a private key
-    if (parameters.shouldSign) {
-      var issuer = await this.askForIssuer("Enter the issuer DID:");
-      parameters.issuer = issuer;
-      const useOwnKey = await this.askForConfirmation(
-        "🔑 Do you want to use your own signing key?",
-        false
-      );
-      if (useOwnKey) {
-        parameters.privateKeyPath = await this.askForFilePath(
-          "Enter the path to your private key file:"
-        );
-        parameters.verificationMethod = await this.askForVerificationMethod();
-      } else {
-        console.log("🔑 Using default signing key...\n");
-        parameters.privateKey = false; // Set default signing key logic if needed
-        parameters.verificationMethod = issuer + "#key-0";
-        // parameters.verificationMethod = "did:web:dataspace4health.local#key-0";
-      }
-    }
-    return parameters;
   }
-
   // Helper function to validate or prompt for a file path
   async validateOrPromptFilePath(filePath, promptMessage) {
     if (fs.existsSync(filePath)) {
@@ -351,27 +378,24 @@ export class ParameterManager {
     // Build the validation function based on constraints
     const validateInput = (input) => {
       // Special handling for 'gx:policy' property
-      if (property === "gx:policy") {
-        // Always valid, even if empty
-        return true;
-      }
+      if (property === "gx:policy") return true;
       if (property === "gx:port") {
         if (!validator.isInt(input)) {
           return "⚠️ Port must be a valid number.";
         }
         return true;
       }
+      if (required && !input) return `⚠️ This property is required.`;
 
-      if (required && !input) {
-        return `⚠️ This property is required.`;
-      }
       const urlProperties = ["id", "gx:openAPI"];
-
-      if (urlProperties.includes(property) && input) {
-        if (!validator.isURL(input, { require_protocol: true })) {
-          return `⚠️ ${property} must be a valid URL.`;
-        }
+      if (
+        urlProperties.includes(property) &&
+        input &&
+        !validator.isURL(input, { require_protocol: true })
+      ) {
+        return `⚠️ ${property} must be a valid URL.`;
       }
+
       // Define property groups for special validations
       const uuidProperties = [
         "gx:legalRegistrationNumber",
@@ -382,36 +406,32 @@ export class ParameterManager {
         "gx:instanceOf",
         "gx:exposedThrough",
       ];
+      // Special case for UUID validations
+      if (uuidProperties.includes(property) && !validator.isUUID(input)) {
+        return `⚠️ Value must be a valid UUID.`;
+      }
+
       const addressProperties = [
         "gx:headquarterAddress",
         "gx:legalAddress",
         "gx:headquartersAddress",
       ];
-
-      // Special case for UUID validations
-      if (uuidProperties.includes(property)) {
-        if (!validator.isUUID(input)) {
-          return `⚠️ Value must be a valid UUID.`;
-        }
-        return true;
-      }
-
       // Special case for address properties (XX-XX format)
-      if (addressProperties.includes(property)) {
-        if (!countryRegions.includes(input)) {
-          return `⚠️ Address must be one of the valid country regions (e.g., LU-CA).`;
-        }
-        return true;
+      if (
+        addressProperties.includes(property) &&
+        !countryRegions.includes(input)
+      ) {
+        return `⚠️ Address must be one of the valid country regions (e.g., LU-CA).`;
       }
 
+      const didProperties = [
+        "gx:providedBy",
+        "gx:producedBy",
+        "gx:maintainedBy",
+        "gx:tenantOwnedBy",
+      ];
       const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+$/;
-
-      if (
-        property === "gx:providedBy" ||
-        property === "gx:producedBy" ||
-        property === "gx:maintainedBy" ||
-        property === "gx:tenantOwnedBy"
-      ) {
+      if (didProperties.includes(property)) {
         return didRegex.test(input) || `⚠️ Value must be a valid DID.`;
       }
 
@@ -428,7 +448,7 @@ export class ParameterManager {
             return `⚠️ Value must be either 'true' or 'false'.`;
           break;
         case "datetime":
-          if (!validator.isISO8601(input))
+          if (input && !validator.isISO8601(input))
             return `⚠️ Value must be a valid ISO 8601 date format.`;
           break;
         case "string":
@@ -456,67 +476,52 @@ export class ParameterManager {
     if (property.startsWith("gx:P")) {
       console.log(`🔍 Collecting response for: ${property}`);
 
-      const answer = await inquirer.prompt([
-        {
-          type: "list",
-          name: "response",
-          message: `Select response for ${property}: ${description}`,
-          choices: ["Confirm", "Deny", "Not applicable"],
-          validate: (input) => (input ? true : "⚠️ Response is required."),
-        },
-        {
-          type: "input",
-          name: "reason",
-          message: "Provide a reason (Optional reason when not applicable)",
-          when: (answers) => answers.response === "Not applicable",
-        },
-        {
-          type: "confirm",
-          name: "addEvidence",
-          message: "Do you want to provide evidence? (Default: No)",
-          default: false,
-        },
-        {
-          type: "input",
-          name: "gx:website",
-          message: "Provide a link to the website for evidence information:",
-          when: (answers) => answers.addEvidence,
-          validate: (input) =>
-            validator.isURL(input, { require_protocol: true }) ||
-            "⚠️ Value must be a valid URL (e.g., https://example.com).",
-        },
-        {
-          type: "input",
-          name: "gx:pdf",
-          message:
-            "Provide a link to the attestation PDF for evidence information:",
-          when: (answers) => answers.addEvidence,
-          validate: (input) =>
-            validator.isURL(input, { require_protocol: true }) ||
-            "⚠️ Value must be a valid URL (e.g., https://example.com).",
-        },
-      ]);
+      const response = await this.askFromChoices(
+        `Select response for ${property}: ${description}`,
+        ["Confirm", "Deny", "Not applicable"]
+      );
       let evidence = {};
-      if (answer.addEvidence) {
-        evidence["gx:evidence"] = {
-          "gx:website": answer["gx:website"],
-          "gx:pdf": answer["gx:pdf"],
+      let reason;
+      if (response === "Not applicable") {
+        reason = await this.promptInput(
+          "Provide a reason (Optional reason when not applicable)",
+          (input) => true // No validation for optional input
+        );
+      }
+      const addEvidence = await this.askForConfirmation(
+        "Do you want to provide evidence? (Default: No)"
+      );
+      if (addEvidence) {
+        const website = await this.promptInput(
+          "Provide a link to the website for evidence information:",
+          (input) =>
+            validator.isURL(input, { require_protocol: true }) ||
+            "⚠️ Value must be a valid URL (e.g., https://example.com)."
+        );
+        const pdf = await this.promptInput(
+          "Provide a link to the attestation PDF for evidence information:",
+          (input) =>
+            validator.isURL(input, { require_protocol: true }) ||
+            "⚠️ Value must be a valid URL (e.g., https://example.com)."
+        );
+        evidence = {
+          "gx:evidence": {
+            "gx:website": website,
+            "gx:pdf": pdf,
+          },
         };
       }
 
       return {
         "gx:description": description,
-        "gx:response": answer.response,
-        ...(answer.reason && { "gx:reason": answer.reason }),
+        "gx:response": response,
+        ...(reason && { "gx:reason": reason }),
         ...evidence,
       };
     }
     // Special case for gx:termsAndConditions
     if (property === "gx:termsAndConditions" || property === "gx:URL") {
-      let url;
-      let termsAndConditionsText;
-      let hash;
-
+      let url, termsAndConditionsText, hash;
       while (true) {
         const answer = await inquirer.prompt([
           {
@@ -697,28 +702,30 @@ export class ParameterManager {
     if (property === "gx:policy" && !answer[property]) {
       return "default: allow";
     }
-    if (
-      property === "gx:legalRegistrationNumber" ||
-      property === "gx:registrationNumber" ||
-      property === "gx:providedBy" ||
-      property === "gx:assignedTo" ||
-      property === "gx:maintainedBy" ||
-      property === "gx:hostedOn" ||
-      property === "gx:instanceOf" ||
-      property === "gx:tenantOwnedBy" ||
-      property === "gx:producedBy" ||
-      property === "gx:exposedThrough"
-    ) {
+    const idProperties = [
+      "gx:legalRegistrationNumber",
+      "gx:registrationNumber",
+      "gx:providedBy",
+      "gx:assignedTo",
+      "gx:maintainedBy",
+      "gx:hostedOn",
+      "gx:instanceOf",
+      "gx:tenantOwnedBy",
+      "gx:producedBy",
+      "gx:exposedThrough",
+    ];
+
+    if (idProperties.includes(property)) {
       return { id: answer[property] };
     }
-    if (
-      [
-        "gx:headquarterAddress",
-        "gx:legalAddress",
-        "headquartersAddress",
-        "legalAddress",
-      ].includes(property)
-    ) {
+    const addressProperties = [
+      "gx:headquarterAddress",
+      "gx:legalAddress",
+      "headquartersAddress",
+      "legalAddress",
+    ];
+
+    if (addressProperties.includes(property)) {
       return { "gx:countrySubdivisionCode": answer[property] };
     }
 
@@ -785,6 +792,19 @@ export class ParameterManager {
     ]);
     return answer.url;
   }
+
+  async promptInput(message, validateFn) {
+    const { input } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "input",
+        message: message,
+        validate: validateFn,
+      },
+    ]);
+    return input;
+  }
+  
   async askFromChoices(message, choices) {
     const answer = await inquirer.prompt([
       {
