@@ -441,6 +441,17 @@ export class ParameterManager {
 
       return true;
     };
+    if (property === "gx:containsPII") {
+      const answer = await inquirer.prompt([
+        {
+          type: "list",
+          name: property,
+          message: `Select value for ${property} (${description || "Boolean value"}):`,
+          choices: ["true", "false"],
+        },
+      ]);
+      return answer[property] === "true";
+    }
     // Handle individual criteria properties (e.g., gx:P4.1.2, gx:P1.1.1, gx:P3.1.1)
     if (property.startsWith("gx:P")) {
       console.log(`🔍 Collecting response for: ${property}`);
