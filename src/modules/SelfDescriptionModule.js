@@ -443,6 +443,10 @@ export class SelfDescriptionModule {
         }
       }
     }
+    // Always remove the gx:aggregationOf property if it exists
+    if (properties["gx:aggregationOf"]) {
+      delete properties["gx:aggregationOf"];
+    }
     // Compute the SHA-256 hash and assign it to the preAssignedProperties
     if (type === "LegalParticipant") {
       const termsAndConditionsText =

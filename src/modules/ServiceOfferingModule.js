@@ -7,7 +7,7 @@ export class ServiceOfferingModule {
       "ServiceOffering",
       // "SOTermsAndConditions",
       "ServiceOfferingLabelLevel1",
-      "DataResource",
+      // "DataResource",
       "SoftwareResource",
       "ServiceAccessPoint",
       "InstantiatedVirtualResource",
@@ -47,18 +47,18 @@ export class ServiceOfferingModule {
         for (const property of this.preAssignedProperties[type]) {
           let assignedId = null;
 
-          // Assign the correct ID based on the shape type
-          if (
-            property === "gx:assignedTo" ||
-            property === "gx:exposedThrough"
-          ) {
-            assignedId = this.previousShapeIds["ServiceOffering"];
-          } else if (property === "gx:instanceOf") {
-            assignedId = this.previousShapeIds["SoftwareResource"];
-          } else if (property === "gx:hostedOn") {
-            assignedId = this.previousShapeIds["DataResource"];
-          } else if (property === "gx:serviceAccessPoint") {
-            assignedId = this.previousShapeIds["ServiceAccessPoint"];
+          // Map properties to their corresponding shape types
+          const propertyToShapeMap = {
+            "gx:assignedTo": "ServiceOffering",
+            "gx:exposedThrough": "ServiceOffering",
+            "gx:instanceOf": "SoftwareResource",
+            "gx:hostedOn": "SoftwareResource",
+            "gx:serviceAccessPoint": "ServiceAccessPoint",
+          };
+
+          const shapeType = propertyToShapeMap[property];
+          if (shapeType) {
+            assignedId = this.previousShapeIds[shapeType];
           }
 
           if (assignedId) {
