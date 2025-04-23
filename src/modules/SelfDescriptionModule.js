@@ -432,6 +432,11 @@ export class SelfDescriptionModule {
           range: "string",
           required: true,
         },
+        "gx:contractNotificationAdress": {
+          description: "This is the link that will be used by the Data Contract Service to send the signed contract to the provider.",
+          range: "string",
+          required: false,
+        },
       },
     };
 
