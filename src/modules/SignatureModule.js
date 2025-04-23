@@ -108,7 +108,7 @@ export class SignatureModule {
     return keys;
   }
 
-  async signWithJWS(data, privateKey, verificationMethod, algorithm = "ES256") {
+  async signWithJWS(data, privateKey, verificationMethod, algorithm = "EdDSA") {
     data.proof = {
       ...data.proof,
       id: uuidv4(), // this id can later be referenced as part of the chain proof

@@ -387,7 +387,7 @@ export class ParameterManager {
       }
       if (required && !input) return `⚠️ This property is required.`;
 
-      const urlProperties = ["id", "gx:openAPI"];
+      const urlProperties = ["id", "gx:openAPI", "gx:contractNotificationAdress"];
       if (
         urlProperties.includes(property) &&
         input &&
@@ -757,7 +757,7 @@ export class ParameterManager {
         message: "🔍 Enter your issuer DID:",
         validate: (input) => {
           // Regular expression for validating a DID without allowing fragments (#...)
-          const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+$/;
+          const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9.\-:]+$/;
 
           if (
             validator.isURL(input, { require_protocol: true }) ||
@@ -859,7 +859,7 @@ export class ParameterManager {
           // Ensure it's either a valid URL or DID
           if (
             validator.isURL(input, { require_protocol: true }) ||
-            /^did:[a-z0-9]+:[a-zA-Z0-9.\-]+(#.+)?$/.test(input)
+            /^did:[a-z0-9]+:[a-zA-Z0-9.\-:]+(#.+)?$/.test(input)
           ) {
             return true;
           }
