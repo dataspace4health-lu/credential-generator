@@ -1,0 +1,2 @@
+dist/credential-generator filter=lfs diff=lfs merge=lfs -text
+dist/credential-generator.exe filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,6 @@
+node_modules/
+# dist/
+dist/my-app.js
+output/
+scripts/ssikit-exported-key.json
+templates/
