@@ -1,14 +1,22 @@
 {
   "name": "self-description-generator",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Generate, validate, and sign Dataspace4Health self-descriptions and credentials.",
+  "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "NTT Data Luxembourg",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dataspace4health/credential-generator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dataspace4health/credential-generator/issues"
+  },
+  "homepage": "https://github.com/dataspace4health/credential-generator#readme",
   "dependencies": {
     "@gaia-x/json-web-signature-2020": "^2.3.0",
     "axios": "^1.7.9",
